@@ -1,6 +1,6 @@
 -- ============================================================================
 -- UniPulse Database Initialization Script (01-init.sql)
--- Platform: PostgreSQL 16
+-- Platform: PostgreSQL 16 / Supabase
 -- Description: Schema initialization for Operational Data (OLTP) and 
 --              Analytical Data (OLAP Star Schema) + JSONB Support.
 -- ============================================================================
@@ -21,7 +21,7 @@ SET search_path TO unipulse_core, public;
 
 -- Faculties
 CREATE TABLE IF NOT EXISTS unipulse_core.faculties (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(20) UNIQUE NOT NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.faculties (
 
 -- Departments
 CREATE TABLE IF NOT EXISTS unipulse_core.departments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     faculty_id UUID NOT NULL REFERENCES unipulse_core.faculties(id) ON DELETE CASCADE,
     code VARCHAR(20) UNIQUE NOT NULL,
     name VARCHAR(150) NOT NULL,
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.departments (
 
 -- Academic Programs
 CREATE TABLE IF NOT EXISTS unipulse_core.programs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     department_id UUID NOT NULL REFERENCES unipulse_core.departments(id) ON DELETE CASCADE,
     code VARCHAR(20) UNIQUE NOT NULL,
     name VARCHAR(150) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.programs (
 
 -- Users (Base authentication table for ALL roles)
 CREATE TABLE IF NOT EXISTS unipulse_core.users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(80) UNIQUE NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.advisors (
 
 -- Modules / Courses
 CREATE TABLE IF NOT EXISTS unipulse_core.modules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     department_id UUID NOT NULL REFERENCES unipulse_core.departments(id),
     code VARCHAR(20) UNIQUE NOT NULL,
     title VARCHAR(150) NOT NULL,
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.modules (
 
 -- Semesters
 CREATE TABLE IF NOT EXISTS unipulse_core.semesters (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) NOT NULL, -- e.g., "Fall 2026"
     academic_year INT NOT NULL,
     start_date DATE NOT NULL,
@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.semesters (
 
 -- Module Enrollments
 CREATE TABLE IF NOT EXISTS unipulse_core.enrollments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID NOT NULL REFERENCES unipulse_core.students(user_id) ON DELETE CASCADE,
     module_id UUID NOT NULL REFERENCES unipulse_core.modules(id) ON DELETE CASCADE,
     semester_id UUID NOT NULL REFERENCES unipulse_core.semesters(id),
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.enrollments (
 
 -- Assessments
 CREATE TABLE IF NOT EXISTS unipulse_core.assessments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     module_id UUID NOT NULL REFERENCES unipulse_core.modules(id) ON DELETE CASCADE,
     semester_id UUID NOT NULL REFERENCES unipulse_core.semesters(id),
     title VARCHAR(100) NOT NULL,
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.assessments (
 
 -- Assessment Results (Includes Supabase File Storage link)
 CREATE TABLE IF NOT EXISTS unipulse_core.assessment_results (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     assessment_id UUID NOT NULL REFERENCES unipulse_core.assessments(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES unipulse_core.students(user_id) ON DELETE CASCADE,
     score_obtained NUMERIC(5, 2),
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.assessment_results (
 
 -- Attendance Sessions
 CREATE TABLE IF NOT EXISTS unipulse_core.attendance_sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     module_id UUID NOT NULL REFERENCES unipulse_core.modules(id) ON DELETE CASCADE,
     lecturer_id UUID NOT NULL REFERENCES unipulse_core.lecturers(user_id),
     session_date DATE NOT NULL,
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.attendance_sessions (
 
 -- Attendance Records
 CREATE TABLE IF NOT EXISTS unipulse_core.attendance_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL REFERENCES unipulse_core.attendance_sessions(id) ON DELETE CASCADE,
     student_id UUID NOT NULL REFERENCES unipulse_core.students(user_id) ON DELETE CASCADE,
     status VARCHAR(20) NOT NULL CHECK (status IN ('PRESENT', 'ABSENT', 'LATE', 'EXCUSED')),
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.attendance_records (
 
 -- Academic Interventions
 CREATE TABLE IF NOT EXISTS unipulse_core.academic_interventions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID NOT NULL REFERENCES unipulse_core.students(user_id) ON DELETE CASCADE,
     initiator_id UUID NOT NULL REFERENCES unipulse_core.users(id),
     module_id UUID REFERENCES unipulse_core.modules(id),
@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.academic_interventions (
 
 -- Realtime Notifications Table
 CREATE TABLE IF NOT EXISTS unipulse_core.notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES unipulse_core.users(id) ON DELETE CASCADE,
     title VARCHAR(150) NOT NULL,
     message TEXT NOT NULL,
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.notifications (
 
 -- JSONB Semi-Structured Table for Learning Events & Clickstream
 CREATE TABLE IF NOT EXISTS unipulse_core.student_learning_events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id UUID NOT NULL REFERENCES unipulse_core.students(user_id) ON DELETE CASCADE,
     event_type VARCHAR(50) NOT NULL,
     event_details JSONB NOT NULL,
@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_semester (
 );
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.fact_performance (
-    fact_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     student_key UUID REFERENCES unipulse_analytics.dim_student(student_key),
     module_key UUID REFERENCES unipulse_analytics.dim_module(module_key),
     semester_key UUID REFERENCES unipulse_analytics.dim_semester(semester_key),
