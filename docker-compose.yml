@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database Service: PostgreSQL 16
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: unipulse_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-unipulse_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_postgres_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - unipulse-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-unipulse_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Backend Service: Spring Boot REST API
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: unipulse_backend
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-unipulse_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-your_postgres_password}
+      SERVER_PORT: ${BACKEND_PORT:-8080}
+      JWT_SECRET: ${JWT_SECRET:-REDACTED_JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - unipulse-network
+
+  # ---------------------------------------------------------------------------
+  # Frontend Service: Next.js Platform Interface
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: unipulse_frontend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: ${FRONTEND_PORT:-3000}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    networks:
+      - unipulse-network
+
+  # ---------------------------------------------------------------------------
+  # Analytics Service: Python Data Pipeline & ETL
+  # ---------------------------------------------------------------------------
+  analytics:
+    build:
+      context: ./analytics
+      dockerfile: Dockerfile
+    container_name: unipulse_analytics
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-your_postgres_password}@postgres:5432/${DB_NAME:-unipulse_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - unipulse-network
+
+networks:
+  unipulse-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

@@ -22,3 +22,40 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+.env.example
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+npm-debug.log*
+
+# Java / Maven (Backend)
+backend/target/
+backend/.mvn/
+backend/*.jar
+backend/.idea/
+backend/*.iml
+backend/.classpath
+backend/.project
+backend/.settings/
+
+# Python / Analytics
+analytics/__pycache__/
+analytics/*.py[cod]
+analytics/.venv/
+analytics/venv/
+analytics/env/
+analytics/.pytest_cache/
+analytics/.ipynb_checkpoints/
+
+# Operating System & IDEs
+.DS_Store
+Thumbs.db
+.vscode/
