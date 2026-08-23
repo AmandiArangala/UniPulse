@@ -1,26 +1,117 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-canvas: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --bg-surface-hover: #F1F5F9;
+    --border-subtle: #E2E8F0;
+    --border-hover: #CBD5E1;
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+    --primary-indigo: #4F46E5;
+    --primary-indigo-hover: #4338CA;
+    --primary-slate: #1E293B;
+
+    /* Risk Tier Tokens */
+    --risk-low-bg: #ECFDF5;
+    --risk-low-border: #A7F3D0;
+    --risk-low-text: #047857;
+    --risk-low-dot: #10B981;
+
+    --risk-med-bg: #FFFBEB;
+    --risk-med-border: #FDE68A;
+    --risk-med-text: #B45309;
+    --risk-med-dot: #F59E0B;
+
+    --risk-high-bg: #FEF2F2;
+    --risk-high-border: #FECDD3;
+    --risk-high-text: #B91C1C;
+    --risk-high-dot: #EF4444;
+  }
+
+  .dark {
+    --bg-canvas: #0B0F17;
+    --bg-surface: #161E2E;
+    --bg-surface-hover: #1E293B;
+    --border-subtle: #26334D;
+    --border-hover: #374151;
+    --text-main: #F8FAFC;
+    --text-muted: #94A3B8;
+    --primary-indigo: #6366F1;
+    --primary-indigo-hover: #4F46E5;
+    --primary-slate: #F8FAFC;
+
+    /* Dark Mode Risk Tiers */
+    --risk-low-bg: rgba(16, 185, 129, 0.15);
+    --risk-low-border: rgba(16, 185, 129, 0.3);
+    --risk-low-text: #34D399;
+    --risk-low-dot: #10B981;
+
+    --risk-med-bg: rgba(245, 158, 11, 0.15);
+    --risk-med-border: rgba(245, 158, 11, 0.3);
+    --risk-med-text: #FBBF24;
+    --risk-med-dot: #F59E0B;
+
+    --risk-high-bg: rgba(239, 68, 68, 0.15);
+    --risk-high-border: rgba(239, 68, 68, 0.3);
+    --risk-high-text: #F87171;
+    --risk-high-dot: #EF4444;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-main);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Glassmorphism Card Utilities */
+.unipulse-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease-in-out;
+}
+
+.unipulse-card:hover {
+  border-color: var(--border-hover);
+}
+
+/* Risk Pill Utility Classes */
+.risk-pill-low {
+  background-color: var(--risk-low-bg);
+  border: 1px solid var(--risk-low-border);
+  color: var(--risk-low-text);
+}
+
+.risk-pill-med {
+  background-color: var(--risk-med-bg);
+  border: 1px solid var(--risk-med-border);
+  color: var(--risk-med-text);
+}
+
+.risk-pill-high {
+  background-color: var(--risk-high-bg);
+  border: 1px solid var(--risk-high-border);
+  color: var(--risk-high-text);
 }
