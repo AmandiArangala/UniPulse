@@ -37,4 +37,9 @@ public class Module {
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "module", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.Set<ModulePrerequisite> prerequisites = new java.util.HashSet<>();
 }
+
