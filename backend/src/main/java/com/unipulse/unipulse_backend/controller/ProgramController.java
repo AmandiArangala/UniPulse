@@ -84,6 +84,6 @@ public class ProgramController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteProgram(@PathVariable UUID id) {
         programService.deleteProgram(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Program deleted successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Program deleted successfully"));
     }
 }

@@ -87,7 +87,7 @@ public class ModuleController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteModule(@PathVariable UUID id) {
         moduleService.deleteModule(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Module deleted successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Module deleted successfully"));
     }
 
     @GetMapping("/{id}/prerequisites")

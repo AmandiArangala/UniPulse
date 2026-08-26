@@ -90,6 +90,6 @@ public class SemesterController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteSemester(@PathVariable UUID id) {
         semesterService.deleteSemester(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Semester deleted successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Semester deleted successfully"));
     }
 }

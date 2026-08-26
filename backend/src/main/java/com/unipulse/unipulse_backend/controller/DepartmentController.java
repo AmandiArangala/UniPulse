@@ -84,6 +84,6 @@ public class DepartmentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteDepartment(@PathVariable UUID id) {
         departmentService.deleteDepartment(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Department deleted successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Department deleted successfully"));
     }
 }

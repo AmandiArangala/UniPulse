@@ -83,6 +83,6 @@ public class FacultyController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteFaculty(@PathVariable UUID id) {
         facultyService.deleteFaculty(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Faculty deleted successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Faculty deleted successfully"));
     }
 }
