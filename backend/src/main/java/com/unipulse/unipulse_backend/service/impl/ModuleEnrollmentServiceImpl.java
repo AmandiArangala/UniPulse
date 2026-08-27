@@ -218,6 +218,28 @@ public class ModuleEnrollmentServiceImpl implements ModuleEnrollmentService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ModuleEnrollmentResponseDto> getStudentEnrollmentsByStatus(UUID studentId, EnrollmentStatus status) {
+        if (!studentRepository.existsById(studentId)) {
+            throw new ResourceNotFoundException("Student", "id", studentId);
+        }
+        return enrollmentRepository.findByStudentUserIdAndStatus(studentId, status).stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ModuleEnrollmentResponseDto> getActiveStudentEnrollments(UUID studentId) {
+        if (!studentRepository.existsById(studentId)) {
+            throw new ResourceNotFoundException("Student", "id", studentId);
+        }
+        return enrollmentRepository.findByStudentUserIdAndStatus(studentId, EnrollmentStatus.ENROLLED).stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
     private ModuleEnrollmentResponseDto mapToResponseDto(Enrollment enrollment) {
         String studentName = "";
         String studentNumber = "";
