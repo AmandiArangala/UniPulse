@@ -27,8 +27,8 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
-    @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateResourceException(DuplicateResourceException ex) {
+    @ExceptionHandler({DuplicateResourceException.class, DuplicateEnrollmentException.class})
+    public ResponseEntity<ErrorResponse> handleDuplicateResourceException(RuntimeException ex) {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.CONFLICT.value())
                 .error(HttpStatus.CONFLICT.getReasonPhrase())
@@ -38,7 +38,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler({InvalidPrerequisiteException.class, CircularDependencyException.class, BadRequestException.class})
+    @ExceptionHandler(PrerequisiteNotMetException.class)
+    public ResponseEntity<ErrorResponse> handlePrerequisiteNotMetException(PrerequisiteNotMetException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                .error("Prerequisite Not Met")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @ExceptionHandler({InvalidPrerequisiteException.class, CircularDependencyException.class, BadRequestException.class, CreditCapExceededException.class, InvalidEnrollmentStatusException.class})
     public ResponseEntity<ErrorResponse> handleBadRequestExceptions(RuntimeException ex) {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
