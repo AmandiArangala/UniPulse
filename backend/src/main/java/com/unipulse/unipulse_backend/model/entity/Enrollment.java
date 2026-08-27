@@ -1,5 +1,6 @@
 package com.unipulse.unipulse_backend.model.entity;
 
+import com.unipulse.unipulse_backend.model.enums.EnrollmentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -39,9 +40,10 @@ public class Enrollment {
     @Column(name = "letter_grade", length = 5)
     private String letterGrade;
 
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    @Column(length = 20)
-    private String status = "ENROLLED";
+    @Column(length = 20, nullable = false)
+    private EnrollmentStatus status = EnrollmentStatus.ENROLLED;
 
     @Column(name = "enrolled_at", insertable = false, updatable = false)
     private OffsetDateTime enrolledAt;
