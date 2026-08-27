@@ -12,6 +12,9 @@ import java.util.UUID;
 @Repository
 public interface StudentRepository extends JpaRepository<Student, UUID> {
     Optional<Student> findByStudentNumber(String studentNumber);
+    boolean existsByStudentNumber(String studentNumber);
     List<Student> findByProgramId(UUID programId);
+    List<Student> findByProgramIdAndCurrentSemester(UUID programId, Integer currentSemester);
     List<Student> findByAcademicStatus(AcademicStatus status);
+    List<Student> findByStudentNumberContainingIgnoreCase(String studentNumber);
 }
