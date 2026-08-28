@@ -5,5 +5,6 @@ public enum AssessmentType {
     QUIZ,
     MIDTERM,
     FINAL,
-    PROJECT
+    PROJECT,
+    PRACTICAL
 }

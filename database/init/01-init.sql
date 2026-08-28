@@ -140,10 +140,11 @@ CREATE TABLE IF NOT EXISTS unipulse_core.assessments (
     module_id UUID NOT NULL REFERENCES unipulse_core.modules(id) ON DELETE CASCADE,
     semester_id UUID NOT NULL REFERENCES unipulse_core.semesters(id),
     title VARCHAR(100) NOT NULL,
-    type VARCHAR(30) NOT NULL CHECK (type IN ('ASSIGNMENT', 'QUIZ', 'MIDTERM', 'FINAL', 'PROJECT')),
+    type VARCHAR(30) NOT NULL CHECK (type IN ('ASSIGNMENT', 'QUIZ', 'MIDTERM', 'FINAL', 'PROJECT', 'PRACTICAL')),
     weight_percentage NUMERIC(5, 2) NOT NULL,
     max_score NUMERIC(5, 2) NOT NULL DEFAULT 100.00,
-    due_date TIMESTAMP WITH TIME ZONE
+    due_date TIMESTAMP WITH TIME ZONE,
+    is_published BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Assessment Results (Includes Supabase File Storage link)

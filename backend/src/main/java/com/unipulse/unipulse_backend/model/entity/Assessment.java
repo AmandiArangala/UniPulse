@@ -44,4 +44,8 @@ public class Assessment {
 
     @Column(name = "due_date")
     private OffsetDateTime dueDate;
+
+    @Builder.Default
+    @Column(name = "is_published", nullable = false)
+    private Boolean isPublished = false;
 }
