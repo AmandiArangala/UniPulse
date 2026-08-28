@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -48,4 +50,8 @@ public class Assessment {
     @Builder.Default
     @Column(name = "is_published", nullable = false)
     private Boolean isPublished = false;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "assessment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<AssessmentTopic> topics = new ArrayList<>();
 }

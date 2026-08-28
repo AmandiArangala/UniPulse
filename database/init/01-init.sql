@@ -147,6 +147,15 @@ CREATE TABLE IF NOT EXISTS unipulse_core.assessments (
     is_published BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Assessment Topics (Granular topic tags for diagnostic analysis)
+CREATE TABLE IF NOT EXISTS unipulse_core.assessment_topics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id UUID NOT NULL REFERENCES unipulse_core.assessments(id) ON DELETE CASCADE,
+    topic_name VARCHAR(150) NOT NULL,
+    weight_contribution NUMERIC(5, 2),
+    description TEXT
+);
+
 -- Assessment Results (Includes Supabase File Storage link)
 CREATE TABLE IF NOT EXISTS unipulse_core.assessment_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,6 +227,7 @@ CREATE TABLE IF NOT EXISTS unipulse_core.student_learning_events (
 -- Indexing JSONB data for performance
 CREATE INDEX IF NOT EXISTS idx_learning_events_jsonb ON unipulse_core.student_learning_events USING gin (event_details);
 CREATE INDEX IF NOT EXISTS idx_assessment_results_student ON unipulse_core.assessment_results(student_id);
+CREATE INDEX IF NOT EXISTS idx_assessment_topics_assessment ON unipulse_core.assessment_topics(assessment_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_records_student ON unipulse_core.attendance_records(student_id);
 
 -- ============================================================================
