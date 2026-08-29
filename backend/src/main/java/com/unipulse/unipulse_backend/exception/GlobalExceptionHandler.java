@@ -38,6 +38,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(InvalidAssessmentWeightException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidAssessmentWeightException(InvalidAssessmentWeightException ex) {
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                .error("Invalid Assessment Weight")
+                .message(ex.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
     @ExceptionHandler(PrerequisiteNotMetException.class)
     public ResponseEntity<ErrorResponse> handlePrerequisiteNotMetException(PrerequisiteNotMetException ex) {
         ErrorResponse response = ErrorResponse.builder()
