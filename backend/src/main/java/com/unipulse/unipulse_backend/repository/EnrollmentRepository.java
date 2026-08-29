@@ -43,4 +43,14 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
 
     @Query("SELECT COUNT(e) > 0 FROM Enrollment e WHERE e.student.userId = :studentId AND e.module.id = :moduleId AND e.status = 'COMPLETED'")
     boolean hasStudentCompletedModule(@Param("studentId") UUID studentId, @Param("moduleId") UUID moduleId);
+
+    @Query("SELECT e FROM Enrollment e WHERE e.student.userId = :studentId AND e.finalGrade IS NOT NULL")
+    List<Enrollment> findGradedEnrollmentsByStudentId(@Param("studentId") UUID studentId);
+
+    @Query("SELECT e FROM Enrollment e WHERE e.student.userId = :studentId AND e.semester.id = :semesterId AND e.finalGrade IS NOT NULL")
+    List<Enrollment> findGradedEnrollmentsByStudentIdAndSemesterId(@Param("studentId") UUID studentId, @Param("semesterId") UUID semesterId);
+
+    @Query("SELECT DISTINCT e.semester.id FROM Enrollment e WHERE e.student.userId = :studentId ORDER BY e.semester.startDate ASC")
+    List<UUID> findDistinctSemesterIdsByStudentId(@Param("studentId") UUID studentId);
 }
+
