@@ -82,6 +82,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**", "/error", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessments/**").hasAnyRole("STUDENT", "LECTURER", "ADVISOR", "ADMIN")
+                        .requestMatchers("/api/v1/assessments/**").hasAnyRole("LECTURER", "ADMIN")
                         .anyRequest().authenticated()
                 );
 
