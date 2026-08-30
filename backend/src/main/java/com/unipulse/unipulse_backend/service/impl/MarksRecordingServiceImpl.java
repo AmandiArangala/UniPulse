@@ -1,9 +1,13 @@
 package com.unipulse.unipulse_backend.service.impl;
 
 import com.unipulse.unipulse_backend.dto.assessment.AssessmentResultResponseDto;
+import com.unipulse.unipulse_backend.dto.assessment.BatchMarkCsvRowDto;
 import com.unipulse.unipulse_backend.dto.assessment.BatchMarkEntryRequestDto;
 import com.unipulse.unipulse_backend.dto.assessment.BatchMarkImportResultDto;
 import com.unipulse.unipulse_backend.dto.assessment.MarkEntryRequestDto;
+import com.unipulse.unipulse_backend.dto.assessment.MarkImportErrorDto;
+import com.unipulse.unipulse_backend.util.CsvParserUtil;
+
 import com.unipulse.unipulse_backend.exception.BadRequestException;
 import com.unipulse.unipulse_backend.exception.ResourceNotFoundException;
 import com.unipulse.unipulse_backend.model.entity.Assessment;
@@ -80,14 +84,88 @@ public class MarksRecordingServiceImpl implements MarksRecordingService {
     }
 
     @Override
+    @Transactional
     public BatchMarkImportResultDto recordBatchMarks(UUID assessmentId, BatchMarkEntryRequestDto request) {
-        throw new UnsupportedOperationException("Batch marks recording will be completed in Commit 9");
+        Assessment assessment = assessmentRepository.findById(assessmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Assessment not found with ID: " + assessmentId));
+
+        if (request == null || request.getMarks() == null || request.getMarks().isEmpty()) {
+            throw new BadRequestException("Marks list cannot be empty");
+        }
+
+        List<MarkImportErrorDto> errors = new java.util.ArrayList<>();
+        List<AssessmentResultResponseDto> recordedResults = new java.util.ArrayList<>();
+        int rowIndex = 0;
+
+        for (MarkEntryRequestDto markEntry : request.getMarks()) {
+            rowIndex++;
+            try {
+                AssessmentResultResponseDto dto = recordSingleMark(assessmentId, markEntry);
+                recordedResults.add(dto);
+            } catch (Exception e) {
+                String studentIdentifier = markEntry.getStudentNumber() != null ? markEntry.getStudentNumber()
+                        : (markEntry.getStudentId() != null ? markEntry.getStudentId().toString() : "Unknown");
+                errors.add(MarkImportErrorDto.builder()
+                        .rowNumber(rowIndex)
+                        .studentNumber(studentIdentifier)
+                        .errorMessage(e.getMessage())
+                        .build());
+            }
+        }
+
+        return BatchMarkImportResultDto.builder()
+                .assessmentId(assessmentId)
+                .totalProcessed(request.getMarks().size())
+                .successCount(recordedResults.size())
+                .failureCount(errors.size())
+                .errors(errors)
+                .recordedResults(recordedResults)
+                .build();
     }
 
     @Override
+    @Transactional
     public BatchMarkImportResultDto recordCsvBatchMarks(UUID assessmentId, InputStream inputStream) {
-        throw new UnsupportedOperationException("CSV batch marks recording will be completed in Commit 9");
+        Assessment assessment = assessmentRepository.findById(assessmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Assessment not found with ID: " + assessmentId));
+
+        List<BatchMarkCsvRowDto> parsedRows = CsvParserUtil.parseMarksBatchCsv(inputStream);
+
+        List<MarkImportErrorDto> errors = new java.util.ArrayList<>();
+        List<AssessmentResultResponseDto> recordedResults = new java.util.ArrayList<>();
+        int rowIndex = 0;
+
+        for (BatchMarkCsvRowDto row : parsedRows) {
+            rowIndex++;
+            try {
+                MarkEntryRequestDto entryDto = MarkEntryRequestDto.builder()
+                        .studentNumber(row.getStudentNumber())
+                        .scoreObtained(row.getScoreObtained())
+                        .isLate(row.getIsLate())
+                        .feedback(row.getFeedback())
+                        .build();
+
+                AssessmentResultResponseDto dto = recordSingleMark(assessmentId, entryDto);
+                recordedResults.add(dto);
+            } catch (Exception e) {
+                errors.add(MarkImportErrorDto.builder()
+                        .rowNumber(rowIndex)
+                        .studentNumber(row.getStudentNumber())
+                        .errorMessage(e.getMessage())
+                        .build());
+            }
+        }
+
+        return BatchMarkImportResultDto.builder()
+                .assessmentId(assessmentId)
+                .totalProcessed(parsedRows.size())
+                .successCount(recordedResults.size())
+                .failureCount(errors.size())
+                .errors(errors)
+                .recordedResults(recordedResults)
+                .build();
     }
+
 
     @Override
     @Transactional(readOnly = true)
