@@ -292,15 +292,117 @@ public class GpaCalculationServiceImpl implements GpaCalculationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public WhatIfGpaSimulationResponseDto simulateWhatIfGpa(UUID studentId, WhatIfGpaSimulationRequestDto request) {
         StudentGpaSummaryDto currentSummary = calculateCumulativeGpa(studentId);
         BigDecimal currentCgpa = currentSummary.getCgpa();
 
-        // In-memory simulation logic
-        BigDecimal simulatedCgpa = currentCgpa.add(new BigDecimal("0.15")).setScale(2, RoundingMode.HALF_UP);
-        if (simulatedCgpa.compareTo(new BigDecimal("4.00")) > 0) {
-            simulatedCgpa = new BigDecimal("4.00");
+        Map<UUID, BigDecimal> simulatedScoreMap = new HashMap<>();
+        if (request != null && request.getSimulatedScores() != null) {
+            for (WhatIfGpaSimulationRequestDto.SimulatedScoreDto item : request.getSimulatedScores()) {
+                if (item.getAssessmentId() != null && item.getSimulatedScore() != null) {
+                    simulatedScoreMap.put(item.getAssessmentId(), item.getSimulatedScore());
+                }
+            }
         }
+
+        List<UUID> semesterIds = enrollmentRepository.findDistinctSemesterIdsByStudentId(studentId);
+        List<ModuleGradeSummaryDto> simulatedModuleSummaries = new ArrayList<>();
+
+        BigDecimal totalSimulatedWeightedPoints = BigDecimal.ZERO;
+        BigDecimal totalSimulatedGpaCredits = BigDecimal.ZERO;
+
+        for (UUID semId : semesterIds) {
+            List<Enrollment> enrollments = enrollmentRepository.findByStudentUserIdAndSemesterId(studentId, semId);
+            for (Enrollment env : enrollments) {
+                com.unipulse.unipulse_backend.model.entity.Module module = env.getModule();
+                List<AssessmentResult> results = assessmentResultRepository.findByStudentUserIdAndAssessmentModuleIdAndAssessmentSemesterId(studentId, module.getId(), semId);
+
+                BigDecimal caScore = BigDecimal.ZERO;
+                BigDecimal weScore = BigDecimal.ZERO;
+                List<AssessmentScoreBreakdownDto> breakdowns = new ArrayList<>();
+
+                for (AssessmentResult res : results) {
+                    Assessment assessment = res.getAssessment();
+                    BigDecimal score = simulatedScoreMap.containsKey(assessment.getId())
+                            ? simulatedScoreMap.get(assessment.getId())
+                            : (res.getScoreObtained() != null ? res.getScoreObtained() : BigDecimal.ZERO);
+
+                    BigDecimal maxScore = assessment.getMaxScore() != null && assessment.getMaxScore().compareTo(BigDecimal.ZERO) > 0
+                            ? assessment.getMaxScore() : new BigDecimal("100.00");
+                    BigDecimal weight = assessment.getWeightPercentage() != null ? assessment.getWeightPercentage() : BigDecimal.ZERO;
+                    BigDecimal weightedContribution = score.divide(maxScore, 4, RoundingMode.HALF_UP).multiply(weight);
+
+                    if (isWrittenExam(assessment.getType())) {
+                        weScore = weScore.add(weightedContribution);
+                    } else {
+                        caScore = caScore.add(weightedContribution);
+                    }
+
+                    breakdowns.add(AssessmentScoreBreakdownDto.builder()
+                            .assessmentId(assessment.getId())
+                            .assessmentTitle(assessment.getTitle())
+                            .assessmentType(assessment.getType())
+                            .weightPercentage(weight)
+                            .maxScore(maxScore)
+                            .scoreObtained(score)
+                            .percentageScore(score.divide(maxScore, 4, RoundingMode.HALF_UP).multiply(new BigDecimal("100.00")).setScale(2, RoundingMode.HALF_UP))
+                            .weightedContribution(weightedContribution.setScale(2, RoundingMode.HALF_UP))
+                            .build());
+                }
+
+                caScore = caScore.setScale(2, RoundingMode.HALF_UP);
+                weScore = weScore.setScale(2, RoundingMode.HALF_UP);
+                BigDecimal rawTotal = caScore.add(weScore).setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal caWeightTotal = module.getCaWeightPercentage();
+                BigDecimal weWeightTotal = module.getWeWeightPercentage();
+                boolean caPass = caWeightTotal.compareTo(BigDecimal.ZERO) == 0 || caScore.compareTo(caWeightTotal.multiply(new BigDecimal("0.35"))) >= 0;
+                boolean wePass = weWeightTotal.compareTo(BigDecimal.ZERO) == 0 || weScore.compareTo(weWeightTotal.multiply(new BigDecimal("0.35"))) >= 0;
+                boolean meetsComponentThreshold = caPass && wePass;
+
+                boolean isGpa = module.isGpaModule();
+                String letterGrade;
+                if (!isGpa) {
+                    letterGrade = (meetsComponentThreshold && rawTotal.compareTo(new BigDecimal("45.00")) >= 0) ? "P" : "F";
+                } else {
+                    letterGrade = GradeMappingUtil.determineFinalLetterGrade(rawTotal, meetsComponentThreshold);
+                }
+
+                BigDecimal gradePoint = GradeMappingUtil.getGradePoint(letterGrade);
+
+                if (isGpa) {
+                    BigDecimal credits = module.getCreditHoursDecimal();
+                    BigDecimal point = gradePoint != null ? gradePoint : BigDecimal.ZERO;
+                    totalSimulatedWeightedPoints = totalSimulatedWeightedPoints.add(point.multiply(credits));
+                    totalSimulatedGpaCredits = totalSimulatedGpaCredits.add(credits);
+                }
+
+                simulatedModuleSummaries.add(ModuleGradeSummaryDto.builder()
+                        .enrollmentId(env.getId())
+                        .moduleId(module.getId())
+                        .moduleCode(module.getCode())
+                        .moduleTitle(module.getTitle())
+                        .creditHours(module.getCreditHoursDecimal())
+                        .isGpa(isGpa)
+                        .caWeightPercentage(caWeightTotal)
+                        .weWeightPercentage(weWeightTotal)
+                        .caScoreObtained(caScore)
+                        .weScoreObtained(weScore)
+                        .finalGrade(rawTotal)
+                        .letterGrade(letterGrade)
+                        .gradePoint(gradePoint)
+                        .meetsComponentThreshold(meetsComponentThreshold)
+                        .assessmentBreakdowns(breakdowns)
+                        .build());
+            }
+        }
+
+        BigDecimal simulatedCgpa = currentCgpa;
+        if (totalSimulatedGpaCredits.compareTo(BigDecimal.ZERO) > 0) {
+            simulatedCgpa = totalSimulatedWeightedPoints.divide(totalSimulatedGpaCredits, 2, RoundingMode.HALF_UP);
+        }
+
         BigDecimal gpaDelta = simulatedCgpa.subtract(currentCgpa).setScale(2, RoundingMode.HALF_UP);
 
         return WhatIfGpaSimulationResponseDto.builder()
@@ -311,9 +413,10 @@ public class GpaCalculationServiceImpl implements GpaCalculationService {
                 .simulatedCgpa(simulatedCgpa)
                 .simulatedDegreeClass(AcademicDegreeClass.fromCgpa(simulatedCgpa))
                 .gpaDelta(gpaDelta)
-                .moduleSimulations(Collections.emptyList())
+                .moduleSimulations(simulatedModuleSummaries)
                 .build();
     }
+
 
     @Override
     @Transactional(readOnly = true)
