@@ -11,6 +11,10 @@ import java.util.UUID;
 @Repository
 public interface AttendanceSessionRepository extends JpaRepository<AttendanceSession, UUID> {
     List<AttendanceSession> findByModuleId(UUID moduleId);
+    List<AttendanceSession> findByModuleIdOrderBySessionDateDesc(UUID moduleId);
     List<AttendanceSession> findByLecturerUserId(UUID lecturerId);
     List<AttendanceSession> findByModuleIdAndSessionDate(UUID moduleId, LocalDate sessionDate);
+    List<AttendanceSession> findByModuleIdAndSessionDateBetween(UUID moduleId, LocalDate startDate, LocalDate endDate);
+    long countByModuleId(UUID moduleId);
 }
+
