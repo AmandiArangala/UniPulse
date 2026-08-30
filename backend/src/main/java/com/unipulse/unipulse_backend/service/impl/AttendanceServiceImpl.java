@@ -2,11 +2,8 @@ package com.unipulse.unipulse_backend.service.impl;
 
 import com.unipulse.unipulse_backend.dto.attendance.*;
 import com.unipulse.unipulse_backend.exception.ResourceNotFoundException;
-import com.unipulse.unipulse_backend.model.entity.AttendanceRecord;
-import com.unipulse.unipulse_backend.model.entity.AttendanceSession;
-import com.unipulse.unipulse_backend.model.entity.Lecturer;
+import com.unipulse.unipulse_backend.model.entity.*;
 import com.unipulse.unipulse_backend.model.entity.Module;
-import com.unipulse.unipulse_backend.model.entity.Student;
 import com.unipulse.unipulse_backend.model.enums.AttendanceStatus;
 import com.unipulse.unipulse_backend.repository.*;
 import com.unipulse.unipulse_backend.service.AttendanceService;
@@ -107,29 +104,146 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional
     public List<AttendanceRecordResponseDto> recordBulkAttendance(BulkAttendanceRecordRequestDto dto) {
-        // Will be extended in Commit 7
-        return new ArrayList<>();
+        AttendanceSession session = sessionRepository.findById(dto.getSessionId())
+                .orElseThrow(() -> new ResourceNotFoundException("AttendanceSession", "id", dto.getSessionId().toString()));
+
+        List<AttendanceRecordResponseDto> responseList = new ArrayList<>();
+
+        for (AttendanceRecordEntryDto entry : dto.getRecords()) {
+            Student student = studentRepository.findById(entry.getStudentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Student", "id", entry.getStudentId().toString()));
+
+            AttendanceRecord record = recordRepository.findBySessionIdAndStudentUserId(session.getId(), student.getUserId())
+                    .orElse(AttendanceRecord.builder()
+                            .session(session)
+                            .student(student)
+                            .build());
+
+            record.setStatus(entry.getStatus());
+            record.setRemarks(entry.getRemarks());
+
+            AttendanceRecord savedRecord = recordRepository.save(record);
+            responseList.add(mapToRecordResponse(savedRecord));
+        }
+
+        return responseList;
     }
 
     @Override
     @Transactional
     public AttendanceRecordResponseDto updateAttendanceRecord(UUID recordId, AttendanceStatus status, String remarks) {
-        // Will be extended in Commit 7
-        return null;
+        AttendanceRecord record = recordRepository.findById(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("AttendanceRecord", "id", recordId.toString()));
+
+        if (status != null) {
+            record.setStatus(status);
+        }
+        if (remarks != null) {
+            record.setRemarks(remarks);
+        }
+
+        AttendanceRecord updatedRecord = recordRepository.save(record);
+        return mapToRecordResponse(updatedRecord);
     }
 
     @Override
     @Transactional(readOnly = true)
     public AttendanceSummaryDto calculateStudentAttendanceSummary(UUID studentId, UUID moduleId) {
-        // Will be extended in Commit 7
-        return null;
+        Student student = studentRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student", "id", studentId.toString()));
+
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Module", "id", moduleId.toString()));
+
+        long totalSessions = sessionRepository.countByModuleId(moduleId);
+        long presentCount = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(studentId, moduleId, AttendanceStatus.PRESENT);
+        long absentCount = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(studentId, moduleId, AttendanceStatus.ABSENT);
+        long lateCount = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(studentId, moduleId, AttendanceStatus.LATE);
+        long excusedCount = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(studentId, moduleId, AttendanceStatus.EXCUSED);
+
+        double effectivePresent = presentCount + (lateCount * 0.5) + excusedCount;
+        double percentage = totalSessions > 0
+                ? Math.min(100.0, Math.round((effectivePresent / totalSessions) * 100.0 * 100.0) / 100.0)
+                : 0.0;
+
+        boolean eligible = percentage >= 80.0;
+        String statusMsg = eligible
+                ? "Student meets attendance requirements (>= 80%)"
+                : "WARNING: Student attendance is below 80% threshold (Ineligible for exam)";
+
+        String studentName = (student.getUser() != null)
+                ? student.getUser().getFirstName() + " " + student.getUser().getLastName()
+                : "Unknown Student";
+
+        return AttendanceSummaryDto.builder()
+                .studentId(student.getUserId())
+                .studentRegistrationNumber(student.getStudentNumber())
+                .studentName(studentName)
+                .moduleId(module.getId())
+                .moduleCode(module.getCode())
+                .totalSessions(totalSessions)
+                .presentCount(presentCount)
+                .absentCount(absentCount)
+                .lateCount(lateCount)
+                .excusedCount(excusedCount)
+                .attendancePercentage(percentage)
+                .eligibleForExam(eligible)
+                .statusMessage(statusMsg)
+                .build();
     }
 
     @Override
     @Transactional(readOnly = true)
     public ModuleAttendanceAnalyticsDto calculateModuleAttendanceAnalytics(UUID moduleId) {
-        // Will be extended in Commit 7
-        return null;
+        Module module = moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Module", "id", moduleId.toString()));
+
+        long totalSessions = sessionRepository.countByModuleId(moduleId);
+        List<Enrollment> enrollments = enrollmentRepository.findByModuleId(moduleId);
+        long totalEnrolled = enrollments.size();
+
+        long presentCount = recordRepository.countBySessionModuleIdAndStatus(moduleId, AttendanceStatus.PRESENT);
+        long absentCount = recordRepository.countBySessionModuleIdAndStatus(moduleId, AttendanceStatus.ABSENT);
+        long lateCount = recordRepository.countBySessionModuleIdAndStatus(moduleId, AttendanceStatus.LATE);
+        long excusedCount = recordRepository.countBySessionModuleIdAndStatus(moduleId, AttendanceStatus.EXCUSED);
+        long totalRecords = presentCount + absentCount + lateCount + excusedCount;
+
+        long lowAttendanceStudentsCount = 0;
+        double sumPercentages = 0.0;
+
+        for (Enrollment enrollment : enrollments) {
+            UUID sId = enrollment.getStudent().getUserId();
+            long sPresent = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(sId, moduleId, AttendanceStatus.PRESENT);
+            long sLate = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(sId, moduleId, AttendanceStatus.LATE);
+            long sExcused = recordRepository.countByStudentUserIdAndSessionModuleIdAndStatus(sId, moduleId, AttendanceStatus.EXCUSED);
+
+            double effPresent = sPresent + (sLate * 0.5) + sExcused;
+            double sPerc = totalSessions > 0 ? Math.min(100.0, Math.round((effPresent / totalSessions) * 100.0 * 100.0) / 100.0) : 0.0;
+
+            sumPercentages += sPerc;
+            if (totalSessions > 0 && sPerc < 80.0) {
+                lowAttendanceStudentsCount++;
+            }
+        }
+
+        double avgPercentage = totalEnrolled > 0
+                ? Math.round((sumPercentages / totalEnrolled) * 100.0) / 100.0
+                : 0.0;
+
+        return ModuleAttendanceAnalyticsDto.builder()
+                .moduleId(module.getId())
+                .moduleCode(module.getCode())
+                .moduleName(module.getTitle())
+                .totalSessions(totalSessions)
+                .totalStudentsEnrolled(totalEnrolled)
+                .totalRecords(totalRecords)
+                .presentCount(presentCount)
+                .absentCount(absentCount)
+                .lateCount(lateCount)
+                .excusedCount(excusedCount)
+                .averageAttendancePercentage(avgPercentage)
+                .lowAttendanceStudentsCount(lowAttendanceStudentsCount)
+                .build();
     }
 
     private AttendanceSessionResponseDto mapToSessionResponse(AttendanceSession session, long totalRecords) {
