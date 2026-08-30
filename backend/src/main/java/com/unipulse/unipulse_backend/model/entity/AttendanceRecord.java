@@ -31,4 +31,7 @@ public class AttendanceRecord {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AttendanceStatus status;
+
+    @Column(length = 255)
+    private String remarks;
 }
