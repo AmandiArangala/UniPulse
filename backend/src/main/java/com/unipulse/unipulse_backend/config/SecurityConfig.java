@@ -84,6 +84,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**", "/error", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/assessments/**").hasAnyRole("STUDENT", "LECTURER", "ADVISOR", "ADMIN")
                         .requestMatchers("/api/v1/assessments/**").hasAnyRole("LECTURER", "ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/attendance/**").hasAnyRole("STUDENT", "LECTURER", "ADVISOR", "ADMIN")
+                        .requestMatchers("/api/v1/attendance/**").hasAnyRole("LECTURER", "ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/events/learning").hasAnyRole("STUDENT", "LECTURER", "ADMIN")
+                        .requestMatchers("/api/v1/events/learning/**").hasAnyRole("STUDENT", "LECTURER", "ADVISOR", "ADMIN")
                         .anyRequest().authenticated()
                 );
 
