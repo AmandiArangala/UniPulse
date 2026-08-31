@@ -12,6 +12,16 @@ export interface UserProfile {
   studentId?: string;
   advisorId?: string;
   employeeId?: string;
+  username?: string;
+}
+
+export interface AuthState {
+  user: UserProfile;
+  role: UserRole;
+  accessToken: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 export interface NotificationItem {
@@ -22,3 +32,4 @@ export interface NotificationItem {
   read: boolean;
   type: 'INFO' | 'WARNING' | 'ALERT' | 'SUCCESS';
 }
+
