@@ -101,8 +101,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <AuthGuard>
-      <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
           <div>
@@ -339,6 +338,5 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-    </AuthGuard>
   );
 }

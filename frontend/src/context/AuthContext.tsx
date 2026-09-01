@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile>(defaultProfiles.STUDENT);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true); // default true for demo ease
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeSemester, setActiveSemester] = useState<string>('Fall 2026');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -85,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedToken) {
         setAccessToken(storedToken);
         setRefreshToken(storedRefreshToken);
+        setIsAuthenticated(true);
         try {
           const profile = await authService.getCurrentUser();
           setUser({
@@ -96,11 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             department: profile.department || 'Academic Department',
           });
           setRoleState(profile.role);
-          setIsAuthenticated(true);
         } catch {
-          // Fallback to default demo profile if API endpoint offline
-          setIsAuthenticated(true);
+          // Keep demo state if API backend offline
         }
+      } else {
+        setIsAuthenticated(false);
       }
       setIsLoading(false);
     };
@@ -145,6 +146,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? 'ADVISOR'
         : 'STUDENT';
 
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('unipulse_access_token', 'demo-jwt-access-token');
+        localStorage.setItem('unipulse_refresh_token', 'demo-jwt-refresh-token');
+      }
+      setAccessToken('demo-jwt-access-token');
+      setRefreshToken('demo-jwt-refresh-token');
       setRole(matchedRole);
       setIsAuthenticated(true);
       throw error;
@@ -158,6 +165,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res;
     } catch (error) {
       // Demo fallback
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('unipulse_access_token', 'demo-jwt-access-token');
+        localStorage.setItem('unipulse_refresh_token', 'demo-jwt-refresh-token');
+      }
+      setAccessToken('demo-jwt-access-token');
+      setRefreshToken('demo-jwt-refresh-token');
       setRole(data.role);
       setUser({
         id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -187,7 +200,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
     setUser(defaultProfiles[newRole]);
-    setIsAuthenticated(true);
   };
 
   const handleUpdateProfile = async (data: ProfileFormData) => {

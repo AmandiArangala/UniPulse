@@ -27,9 +27,7 @@ export const registerSchema = z
       .email('Please enter a valid email address'),
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
-    role: z.enum(['STUDENT', 'LECTURER', 'ADVISOR', 'ADMIN'], {
-      required_error: 'Please select a role',
-    }),
+    role: z.enum(['STUDENT', 'LECTURER', 'ADVISOR', 'ADMIN']),
     password: z
       .string()
       .min(6, 'Password must be at least 6 characters'),
