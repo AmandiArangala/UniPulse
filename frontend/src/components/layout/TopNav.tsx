@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Search,
   Bell,
@@ -162,14 +163,18 @@ export function TopNav() {
         </div>
 
         {/* Profile Pill */}
-        <div className="flex items-center space-x-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-          <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs border border-indigo-200 dark:border-indigo-800">
+        <Link
+          href="/profile"
+          className="flex items-center space-x-2 pl-2 border-l border-slate-200 dark:border-slate-800 hover:opacity-80 transition-opacity group cursor-pointer"
+          title="Manage Profile & Security"
+        >
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs border border-indigo-200 dark:border-indigo-800 group-hover:border-indigo-500">
             <User className="w-4 h-4" />
           </div>
-          <span className="hidden xl:block text-xs font-semibold text-slate-800 dark:text-slate-200">
+          <span className="hidden xl:block text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
             {user.name}
           </span>
-        </div>
+        </Link>
       </div>
     </header>
   );

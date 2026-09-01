@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   GraduationCap,
@@ -18,9 +18,12 @@ import {
   ShieldCheck,
   Zap,
   FolderGit2,
+  User,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { UserRole } from '@/types/auth';
+import { toast } from 'sonner';
 
 interface NavItem {
   label: string;
@@ -36,31 +39,44 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
     { label: 'What-If Simulator', href: '/student/simulator', icon: Sliders, badge: 'Tool' },
     { label: 'Academic Twin', href: '/student/twin', icon: Activity },
     { label: 'Student Journey', href: '/student/journey', icon: Calendar },
+    { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   LECTURER: [
     { label: 'Module Radar', href: '/', icon: LayoutDashboard },
     { label: 'Attention Queue', href: '/lecturer/attention', icon: AlertTriangle, badge: '14' },
     { label: 'Difficulty Analyzer', href: '/lecturer/difficulty', icon: BarChart3 },
     { label: 'Assessments', href: '/lecturer/assessments', icon: BookOpen },
+    { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   ADVISOR: [
     { label: 'Caseload Matrix', href: '/', icon: LayoutDashboard },
     { label: 'Interventions', href: '/advisor/interventions', icon: Users, badge: 'Active' },
     { label: 'Outcome Analytics', href: '/advisor/analytics', icon: BarChart3 },
+    { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   ADMIN: [
     { label: 'Institutional Analytics', href: '/', icon: LayoutDashboard },
     { label: 'Cohort Comparison', href: '/admin/cohorts', icon: GraduationCap },
     { label: 'Difficulty Index', href: '/admin/modules', icon: FolderGit2 },
     { label: 'ETL & Data Quality', href: '/admin/data-quality', icon: ShieldCheck, badge: 'Clean' },
+    { label: 'Profile & Security', href: '/profile', icon: User },
   ],
 };
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { role, isSidebarOpen, toggleSidebar, user } = useAuth();
+  const router = useRouter();
+  const { role, isSidebarOpen, toggleSidebar, user, logout } = useAuth();
 
   const currentNavItems = navItemsByRole[role] || navItemsByRole.STUDENT;
+
+  const handleLogout = () => {
+    logout();
+    toast.info('Signed out', {
+      description: 'You have been safely logged out of UniPulse.',
+    });
+    router.push('/login');
+  };
 
   return (
     <aside
@@ -147,24 +163,35 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* User Footer Profile */}
+      {/* User Footer Profile & Logout */}
       <div className="p-3 border-t border-slate-100 dark:border-slate-800">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-full bg-slate-900 text-white dark:bg-indigo-600 flex items-center justify-center font-bold text-xs flex-shrink-0">
-            {user.name.split(' ').map((n) => n[0]).join('')}
-          </div>
-          {isSidebarOpen && (
-            <div className="flex flex-col truncate">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                {user.name}
-              </span>
-              <span className="text-[10px] text-slate-400 truncate">
-                {user.email}
-              </span>
+        <div className="flex items-center justify-between">
+          <Link href="/profile" className="flex items-center space-x-3 overflow-hidden group">
+            <div className="w-9 h-9 rounded-full bg-slate-900 text-white dark:bg-indigo-600 flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:ring-2 group-hover:ring-indigo-500 transition-all">
+              {user.name.split(' ').map((n) => n[0]).join('')}
             </div>
-          )}
+            {isSidebarOpen && (
+              <div className="flex flex-col truncate">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
+                  {user.name}
+                </span>
+                <span className="text-[10px] text-slate-400 truncate">
+                  {user.email}
+                </span>
+              </div>
+            )}
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+            title="Sign out of UniPulse"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>
   );
 }
+
