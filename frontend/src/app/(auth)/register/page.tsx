@@ -41,11 +41,10 @@ export default function RegisterPage() {
         description: `Welcome to UniPulse, ${data.firstName}!`,
       });
       router.push('/');
-    } catch {
-      toast.success('Registered demo account!', {
-        description: `Created account for ${data.email} as ${data.role}`,
+    } catch (err: any) {
+      toast.error('Registration Failed', {
+        description: err?.message || 'Unable to create account. Email or username may already be in use.',
       });
-      router.push('/');
     } finally {
       setIsSubmitting(false);
     }

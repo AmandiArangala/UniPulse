@@ -8,18 +8,21 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginFormData } from '@/lib/validations/auth';
 import { useAuth, defaultProfiles } from '@/context/AuthContext';
 import { UserRole } from '@/types/auth';
-import { Lock, Mail, ArrowRight, Loader2, KeyRound, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, setRole } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     setValue,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -32,24 +35,24 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsSubmitting(true);
+    setAuthError(null);
     try {
       await login(data);
       toast.success('Welcome back!', {
         description: 'Successfully authenticated to UniPulse platform.',
       });
       router.push('/');
-    } catch {
-      // AuthContext handles fallback or toast notification
-      toast.success('Signed in using workspace demo session', {
-        description: `Logged in as ${data.email}`,
-      });
-      router.push('/');
+    } catch (err: any) {
+      const errorMsg = err?.message || 'Invalid email or password. Access denied.';
+      setAuthError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleQuickDemoSwitch = (targetRole: UserRole) => {
+    setAuthError(null);
+    clearErrors();
     const profile = defaultProfiles[targetRole];
     setValue('email', profile.email);
     setValue('password', 'DemoPassword123!');
@@ -57,6 +60,10 @@ export default function LoginPage() {
     toast.info(`Switched to ${targetRole} Demo Account`, {
       description: `Preset email filled: ${profile.email}`,
     });
+  };
+
+  const handleInputChange = () => {
+    if (authError) setAuthError(null);
   };
 
   return (
@@ -94,6 +101,20 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {/* Authentication Failure Alert Card Only */}
+      {authError && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 text-xs flex items-start space-x-3 transition-all animate-pulse">
+          <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="font-bold text-rose-200 text-sm">Invalid Credentials</h4>
+            <p className="text-rose-300/90 leading-relaxed">{authError}</p>
+            <p className="text-[11px] text-rose-400 font-semibold mt-1">
+              • Please double check your email address and password formatting.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Email / Username Field */}
@@ -105,6 +126,10 @@ export default function LoginPage() {
             <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               {...register('email')}
+              onChange={(e) => {
+                register('email').onChange(e);
+                handleInputChange();
+              }}
               type="text"
               placeholder="user@unipulse.edu or username"
               className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${
@@ -134,6 +159,10 @@ export default function LoginPage() {
             <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               {...register('password')}
+              onChange={(e) => {
+                register('password').onChange(e);
+                handleInputChange();
+              }}
               type="password"
               placeholder="••••••••••••"
               className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${

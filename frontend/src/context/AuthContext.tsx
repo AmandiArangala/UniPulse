@@ -74,31 +74,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeSemester, setActiveSemester] = useState<string>('Fall 2026');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
-  // Initialize auth state from local storage or verify JWT token
+  /**
+   * Best Practice Session Initialization:
+   * 1. Check for stored JWT Access Token.
+   * 2. Fetch authoritative user profile directly from Backend API (GET /api/v1/auth/me).
+   * 3. Fallback gracefully to cached session if API is in demo mode.
+   */
   useEffect(() => {
     const initAuth = async () => {
       if (typeof window === 'undefined') return;
 
       const storedToken = localStorage.getItem('unipulse_access_token');
       const storedRefreshToken = localStorage.getItem('unipulse_refresh_token');
+      const storedProfile = localStorage.getItem('unipulse_user_profile');
 
       if (storedToken) {
         setAccessToken(storedToken);
         setRefreshToken(storedRefreshToken);
         setIsAuthenticated(true);
+
         try {
+          // Primary: Fetch authoritative profile from Spring Boot Backend
           const profile = await authService.getCurrentUser();
-          setUser({
+          const fetchedUser: UserProfile = {
             id: profile.id,
             name: `${profile.firstName} ${profile.lastName}`,
             email: profile.email,
             username: profile.username,
             role: profile.role,
-            department: profile.department || 'Academic Department',
-          });
+            department: profile.department || defaultProfiles[profile.role]?.department || 'Academic Department',
+          };
+          setUser(fetchedUser);
           setRoleState(profile.role);
+          localStorage.setItem('unipulse_user_profile', JSON.stringify(fetchedUser));
         } catch {
-          // Keep demo state if API backend offline
+          // Demo Mode Fallback: Restore saved local session if backend server is offline
+          if (storedProfile) {
+            try {
+              const parsed = JSON.parse(storedProfile);
+              setUser(parsed);
+              setRoleState(parsed.role || 'STUDENT');
+            } catch {
+              // Ignore invalid JSON
+            }
+          }
         }
       } else {
         setIsAuthenticated(false);
@@ -109,111 +128,127 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
+  /**
+   * Handles successful login/register API response.
+   */
   const handleAuthSuccess = (res: BackendAuthResponse) => {
     const token = res.accessToken;
     const refToken = res.refreshToken;
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('unipulse_access_token', token);
-      localStorage.setItem('unipulse_refresh_token', refToken);
-    }
-
-    setAccessToken(token);
-    setRefreshToken(refToken);
-    setRoleState(res.role);
-    setUser({
+    const loggedUser: UserProfile = {
       id: res.userId,
       name: `${res.firstName} ${res.lastName}`,
       email: res.email,
       username: res.username,
       role: res.role,
-    });
+      department: defaultProfiles[res.role]?.department || 'Academic Department',
+    };
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('unipulse_access_token', token);
+      localStorage.setItem('unipulse_refresh_token', refToken);
+      localStorage.setItem('unipulse_user_profile', JSON.stringify(loggedUser));
+    }
+
+    setAccessToken(token);
+    setRefreshToken(refToken);
+    setRoleState(res.role);
+    setUser(loggedUser);
     setIsAuthenticated(true);
   };
 
+  /**
+   * Production-grade Login handler: Enforces strict backend authentication security.
+   * If backend responds with 401 Bad Credentials or 400, login is REJECTED.
+   */
   const login = async (data: LoginFormData): Promise<BackendAuthResponse> => {
     try {
       const res = await authService.login(data);
       handleAuthSuccess(res);
       return res;
-    } catch (error) {
-      // Demo fallback if backend is not actively running
-      const matchedRole = data.email.toLowerCase().includes('admin')
-        ? 'ADMIN'
-        : data.email.toLowerCase().includes('lecturer')
-        ? 'LECTURER'
-        : data.email.toLowerCase().includes('advisor')
-        ? 'ADVISOR'
-        : 'STUDENT';
-
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('unipulse_access_token', 'demo-jwt-access-token');
-        localStorage.setItem('unipulse_refresh_token', 'demo-jwt-refresh-token');
+    } catch (error: any) {
+      setIsAuthenticated(false);
+      if (error.response) {
+        const serverMsg = error.response?.data?.message || 'Invalid email or password. Access denied.';
+        throw new Error(serverMsg);
       }
-      setAccessToken('demo-jwt-access-token');
-      setRefreshToken('demo-jwt-refresh-token');
-      setRole(matchedRole);
-      setIsAuthenticated(true);
-      throw error;
+      throw new Error('Backend server connection failed. Please ensure the Spring Boot server is running on http://localhost:8080');
     }
   };
 
+  /**
+   * Production-grade Register handler: Enforces backend validation.
+   */
   const register = async (data: RegisterFormData): Promise<BackendAuthResponse> => {
     try {
       const res = await authService.register(data);
       handleAuthSuccess(res);
       return res;
-    } catch (error) {
-      // Demo fallback
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('unipulse_access_token', 'demo-jwt-access-token');
-        localStorage.setItem('unipulse_refresh_token', 'demo-jwt-refresh-token');
+    } catch (error: any) {
+      setIsAuthenticated(false);
+      if (error.response) {
+        const serverMsg = error.response?.data?.message || 'Registration failed. Email or username is already in use.';
+        throw new Error(serverMsg);
       }
-      setAccessToken('demo-jwt-access-token');
-      setRefreshToken('demo-jwt-refresh-token');
-      setRole(data.role);
-      setUser({
-        id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
-        name: `${data.firstName} ${data.lastName}`,
-        email: data.email,
-        username: data.username,
-        role: data.role,
-      });
-      setIsAuthenticated(true);
-      throw error;
+      throw new Error('Backend server connection failed. Please ensure the Spring Boot server is running on http://localhost:8080');
     }
   };
 
+  /**
+   * Production Logout: Clears all session tokens and user state
+   */
   const logout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('unipulse_access_token');
       localStorage.removeItem('unipulse_refresh_token');
+      localStorage.removeItem('unipulse_user_profile');
     }
     setAccessToken(null);
     setRefreshToken(null);
     setIsAuthenticated(false);
-    // Reset to default demo student
     setUser(defaultProfiles.STUDENT);
     setRoleState('STUDENT');
   };
 
+  /**
+   * Role Switcher for previewing multi-role workspaces
+   */
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
     setUser(defaultProfiles[newRole]);
   };
 
+  /**
+   * Updates user profile via API (PUT /api/v1/users/profile) and updates local state
+   */
   const handleUpdateProfile = async (data: ProfileFormData) => {
     try {
-      await authService.updateProfile(data);
+      const updatedProfile = await authService.updateProfile(data);
+      const updatedUser: UserProfile = {
+        id: updatedProfile.id,
+        name: `${updatedProfile.firstName} ${updatedProfile.lastName}`,
+        email: updatedProfile.email,
+        username: updatedProfile.username,
+        role: updatedProfile.role,
+        department: updatedProfile.department || user.department,
+      };
+      setUser(updatedUser);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('unipulse_user_profile', JSON.stringify(updatedUser));
+      }
     } catch {
-      // Local state fallback
+      // Local state fallback if backend API is not active
+      const updatedUser: UserProfile = {
+        ...user,
+        name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        department: data.department || user.department,
+      };
+      setUser(updatedUser);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('unipulse_user_profile', JSON.stringify(updatedUser));
+      }
     }
-    setUser((prev) => ({
-      ...prev,
-      name: `${data.firstName} ${data.lastName}`,
-      email: data.email,
-      department: data.department || prev.department,
-    }));
   };
 
   const toggleSidebar = () => {
@@ -247,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

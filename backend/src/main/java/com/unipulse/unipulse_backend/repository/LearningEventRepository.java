@@ -30,6 +30,6 @@ public interface LearningEventRepository extends JpaRepository<LearningEvent, UU
 
     List<LearningEvent> findByTimestampBetweenOrderByTimestampDesc(LocalDateTime start, LocalDateTime end);
 
-    @Query("SELECT e.eventType, COUNT(e) FROM LearningEvent e WHERE e.student.user_id = :studentId AND e.module.id = :moduleId GROUP BY e.eventType")
+    @Query("SELECT e.eventType, COUNT(e) FROM LearningEvent e WHERE e.student.userId = :studentId AND e.module.id = :moduleId GROUP BY e.eventType")
     List<Object[]> countEventTypesByStudentAndModule(@Param("studentId") UUID studentId, @Param("moduleId") UUID moduleId);
 }
