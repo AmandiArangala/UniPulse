@@ -17,6 +17,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.unipulse.unipulse_backend.config.DataInitializer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final CustomUserDetailsService userDetailsService;
+    private final DataInitializer dataInitializer;
 
     @Override
     @Transactional
@@ -83,6 +85,10 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        // Auto-provision Student or Lecturer profile row in database
+        dataInitializer.syncUnprovisionedUsers();
+
         UserPrincipal userPrincipal = UserPrincipal.create(savedUser);
 
         String accessToken = jwtUtils.generateAccessTokenFromUserPrincipal(userPrincipal);
