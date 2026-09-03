@@ -8,17 +8,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { registerSchema, RegisterFormData } from '@/lib/validations/auth';
 import { useAuth } from '@/context/AuthContext';
 import { UserRole } from '@/types/auth';
-import { Mail, Lock, User, UserCheck, Shield, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, UserCheck, Shield, ArrowRight, Loader2, CheckCircle2, Circle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register: registerAuth } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -33,7 +35,28 @@ export default function RegisterPage() {
     },
   });
 
+  const passwordValue = watch('password') || '';
+
+  const passwordRequirements = [
+    { label: 'Uppercase letter', met: /[A-Z]/.test(passwordValue) },
+    { label: 'Lowercase letter', met: /[a-z]/.test(passwordValue) },
+    { label: 'Number', met: /[0-9]/.test(passwordValue) },
+    { label: 'Special character (e.g. !?<>@#$%)', met: /[^A-Za-z0-9]/.test(passwordValue) },
+    { label: '8 characters or more', met: passwordValue.length >= 8 },
+  ];
+
+  const isPasswordValid = passwordRequirements.every((req) => req.met);
+
   const onSubmit = async (data: RegisterFormData) => {
+    setHasAttemptedSubmit(true);
+
+    if (!isPasswordValid) {
+      toast.error('Password criteria incomplete', {
+        description: 'Please satisfy all 5 password requirements marked in red.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await registerAuth(data);
@@ -50,6 +73,13 @@ export default function RegisterPage() {
     }
   };
 
+  const onInvalid = () => {
+    setHasAttemptedSubmit(true);
+    toast.error('Form incomplete', {
+      description: 'Please complete all required fields and password requirements.',
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -63,7 +93,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Registration Form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
         {/* First & Last Name */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -211,6 +241,52 @@ export default function RegisterPage() {
             {errors.confirmPassword && (
               <p className="text-xs text-rose-400 mt-1">{errors.confirmPassword.message}</p>
             )}
+          </div>
+        </div>
+
+        {/* Password Requirements Dynamic Checklist */}
+        <div className={`p-4 rounded-xl transition-all space-y-2.5 ${
+          hasAttemptedSubmit && !isPasswordValid
+            ? 'bg-rose-950/20 border-2 border-rose-500/50'
+            : 'bg-slate-900/90 border border-slate-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${
+              hasAttemptedSubmit && !isPasswordValid ? 'text-rose-400 font-bold' : 'text-slate-400'
+            }`}>
+              Password Requirements
+            </p>
+            {hasAttemptedSubmit && !isPasswordValid && (
+              <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                Action Required
+              </span>
+            )}
+          </div>
+          <div className="space-y-2 pt-0.5">
+            {passwordRequirements.map((req, idx) => {
+              const isUnfulfilledError = !req.met && hasAttemptedSubmit;
+
+              return (
+                <div key={idx} className="flex items-center space-x-2.5 text-xs transition-all">
+                  {req.met ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 fill-emerald-500/20 shrink-0" />
+                  ) : isUnfulfilledError ? (
+                    <XCircle className="w-4 h-4 text-rose-500 fill-rose-500/20 shrink-0 animate-pulse" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-slate-600 shrink-0" />
+                  )}
+                  <span className={
+                    req.met
+                      ? 'text-emerald-300 font-medium'
+                      : isUnfulfilledError
+                      ? 'text-rose-400 font-semibold'
+                      : 'text-slate-400'
+                  }>
+                    {req.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
