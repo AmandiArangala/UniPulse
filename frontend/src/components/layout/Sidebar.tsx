@@ -36,9 +36,10 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
   STUDENT: [
     { label: 'Academic Pulse', href: '/', icon: LayoutDashboard },
     { label: 'Enrolled Modules', href: '/student/modules', icon: BookOpen },
+    { label: 'Attendance Tracker', href: '/student/attendance', icon: Calendar },
+    { label: 'Unofficial Transcript', href: '/student/transcript', icon: GraduationCap },
     { label: 'What-If Simulator', href: '/student/simulator', icon: Sliders, badge: 'Tool' },
     { label: 'Academic Twin', href: '/student/twin', icon: Activity },
-    { label: 'Student Journey', href: '/student/journey', icon: Calendar },
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   LECTURER: [
