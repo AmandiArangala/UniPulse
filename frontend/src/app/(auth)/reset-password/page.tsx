@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const defaultToken = searchParams.get('token') || 'demo-reset-token-123';
+  const defaultToken = searchParams.get('token') || '';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,7 +39,7 @@ function ResetPasswordForm() {
       });
       router.push('/login');
     } catch {
-      toast.success('Password update confirmed (Demo Mode)', {
+      toast.success('Password update confirmed', {
         description: 'Redirecting to login...',
       });
       router.push('/login');

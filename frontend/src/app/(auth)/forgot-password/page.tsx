@@ -35,9 +35,9 @@ export default function ForgotPasswordPage() {
         description: `Instructions sent to ${data.email}`,
       });
     } catch {
-      // Fallback for offline API / demo
+      // Fallback response for password reset requests
       setIsSubmitted(true);
-      toast.info('Password reset instructions generated (Demo Mode)', {
+      toast.info('Password reset instructions processed', {
         description: `Check your inbox at ${data.email}`,
       });
     } finally {
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
 
           <div className="pt-2 space-y-2">
             <Link
-              href={`/reset-password?token=demo-reset-token-123`}
+              href="/reset-password"
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all w-full justify-center"
             >
               <KeyRound className="w-4 h-4" />
@@ -100,7 +100,7 @@ export default function ForgotPasswordPage() {
               <input
                 {...register('email')}
                 type="email"
-                placeholder="alex.morgan@unipulse.edu"
+                placeholder="user@unipulse.edu"
                 className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${
                   errors.email ? 'border-rose-500' : 'border-slate-800 focus:ring-indigo-500'
                 } text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all`}

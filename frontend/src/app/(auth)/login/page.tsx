@@ -6,29 +6,25 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginFormData } from '@/lib/validations/auth';
-import { useAuth, defaultProfiles } from '@/context/AuthContext';
-import { UserRole } from '@/types/auth';
-import { Lock, Mail, ArrowRight, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { Lock, Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, setRole } = useAuth();
+  const { login } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
-    setValue,
-    setError,
-    clearErrors,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'alex.morgan@unipulse.edu',
-      password: 'Password123!',
+      email: '',
+      password: '',
       rememberMe: true,
     },
   });
@@ -50,18 +46,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickDemoSwitch = (targetRole: UserRole) => {
-    setAuthError(null);
-    clearErrors();
-    const profile = defaultProfiles[targetRole];
-    setValue('email', profile.email);
-    setValue('password', 'DemoPassword123!');
-    setRole(targetRole);
-    toast.info(`Switched to ${targetRole} Demo Account`, {
-      description: `Preset email filled: ${profile.email}`,
-    });
-  };
-
   const handleInputChange = () => {
     if (authError) setAuthError(null);
   };
@@ -74,31 +58,8 @@ export default function LoginPage() {
           Sign in to your account
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Enter your institutional credentials or select a demo role below
+          Enter your institutional credentials to access your portal
         </p>
-      </div>
-
-      {/* Quick Demo Selector Card */}
-      <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Quick Demo Login
-          </span>
-          <span className="text-[10px] text-slate-500 font-mono">Select Role:</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          {(['STUDENT', 'LECTURER', 'ADVISOR', 'ADMIN'] as UserRole[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handleQuickDemoSwitch(r)}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-300 transition-all text-center border border-slate-700 hover:border-indigo-500 truncate"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Authentication Failure Alert Card Only */}

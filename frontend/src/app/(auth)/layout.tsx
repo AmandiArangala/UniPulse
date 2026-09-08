@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Zap, ShieldCheck, Activity, GraduationCap } from 'lucide-react';
+import { Zap, ShieldCheck, GraduationCap, Sparkles } from 'lucide-react';
 import { GuestGuard } from '@/components/guards/GuestGuard';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -35,8 +35,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {/* Middle Value Proposition */}
           <div className="relative z-10 space-y-6 my-auto max-w-md">
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
-              <Activity className="w-3.5 h-3.5" />
-              <span>Phase 3: Frontend Portals & Authentication</span>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Enterprise Academic Intelligence Platform</span>
             </div>
 
             <h1 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
@@ -53,8 +53,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                   <ShieldCheck className="w-4 h-4" />
                   <span className="text-xs font-bold uppercase tracking-wider">Security</span>
                 </div>
-                <p className="text-xl font-bold text-white">JWT + 401 Refresh</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Role-based API protection</p>
+                <p className="text-xl font-bold text-white">Role-Based Access</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">End-to-end academic data privacy</p>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
@@ -62,8 +62,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                   <GraduationCap className="w-4 h-4" />
                   <span className="text-xs font-bold uppercase tracking-wider">Portals</span>
                 </div>
-                <p className="text-xl font-bold text-white">4 Distinct Roles</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Student, Lecturer, Advisor, Admin</p>
+                <p className="text-xl font-bold text-white">4 Unified Roles</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Students, Lecturers, Advisors & Admins</p>
               </div>
             </div>
           </div>
