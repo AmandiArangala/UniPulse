@@ -115,3 +115,55 @@ body {
   border: 1px solid var(--risk-high-border);
   color: var(--risk-high-text);
 }
+
+/* ============================================================================ */
+/* Print Media Formatting for Official Academic Transcripts & Records           */
+/* ============================================================================ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.2cm;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Hide app shell, sidebar, topnav, toasts, and action toolbars during print */
+  aside,
+  nav,
+  header,
+  .print\:hidden,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  /* Reset main content container */
+  main {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Page break utilities */
+  .page-break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Clean up shadows & borders */
+  #transcript-document {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+}
+

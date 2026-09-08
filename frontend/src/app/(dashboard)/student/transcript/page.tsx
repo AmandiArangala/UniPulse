@@ -221,7 +221,7 @@ export default function UnofficialTranscriptPage() {
             }, 0);
 
             return (
-              <div key={sem.semesterId || idx} className="space-y-2">
+              <div key={sem.semesterId || idx} className="space-y-2 page-break-inside-avoid">
                 {/* Semester Heading */}
                 <div className="flex items-center justify-between border-b border-indigo-900/40 pb-1.5">
                   <h3 className="font-bold text-sm text-indigo-950 uppercase tracking-wide">
@@ -302,7 +302,7 @@ export default function UnofficialTranscriptPage() {
         </div>
 
         {/* Cumulative Degree Summary Card */}
-        <div className="border-t-2 border-indigo-950 pt-6 space-y-4">
+        <div className="border-t-2 border-indigo-950 pt-6 space-y-4 page-break-inside-avoid">
           <div className="flex items-center justify-between">
             <h3 className="font-black text-sm uppercase tracking-wider text-indigo-950">
               Cumulative Academic Performance Record
@@ -343,7 +343,7 @@ export default function UnofficialTranscriptPage() {
         </div>
 
         {/* Verification & Registrar Sign-off Box */}
-        <div className="pt-8 mt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-6 text-[11px] text-slate-500">
+        <div className="pt-8 mt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-6 text-[11px] text-slate-500 page-break-inside-avoid">
           <div className="space-y-1">
             <div className="font-bold text-slate-700 uppercase">Transcript Security Notice:</div>
             <p>
