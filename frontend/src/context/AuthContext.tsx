@@ -84,9 +84,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       if (typeof window === 'undefined') return;
 
-      const storedToken = localStorage.getItem('unipulse_access_token');
-      const storedRefreshToken = localStorage.getItem('unipulse_refresh_token');
-      const storedProfile = localStorage.getItem('unipulse_user_profile');
+      const storedToken =
+        localStorage.getItem('unipulse_access_token') ||
+        sessionStorage.getItem('unipulse_access_token');
+      const storedRefreshToken =
+        localStorage.getItem('unipulse_refresh_token') ||
+        sessionStorage.getItem('unipulse_refresh_token');
+      const storedProfile =
+        localStorage.getItem('unipulse_user_profile') ||
+        sessionStorage.getItem('unipulse_user_profile');
 
       if (storedToken) {
         setAccessToken(storedToken);
@@ -106,9 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
           setUser(fetchedUser);
           setRoleState(profile.role);
-          localStorage.setItem('unipulse_user_profile', JSON.stringify(fetchedUser));
+          if (localStorage.getItem('unipulse_access_token')) {
+            localStorage.setItem('unipulse_user_profile', JSON.stringify(fetchedUser));
+          } else {
+            sessionStorage.setItem('unipulse_user_profile', JSON.stringify(fetchedUser));
+          }
         } catch {
-          // Demo Mode Fallback: Restore saved local session if backend server is offline
+          // Fallback: Restore saved local session if backend server is offline
           if (storedProfile) {
             try {
               const parsed = JSON.parse(storedProfile);
@@ -130,8 +140,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /**
    * Handles successful login/register API response.
+   * If rememberMe is true, persists to localStorage (retains login across browser restarts).
+   * If rememberMe is false, persists to sessionStorage (cleared when browser/tab is closed).
    */
-  const handleAuthSuccess = (res: BackendAuthResponse) => {
+  const handleAuthSuccess = (res: BackendAuthResponse, rememberMe: boolean = true) => {
     const token = res.accessToken;
     const refToken = res.refreshToken;
 
@@ -145,9 +157,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('unipulse_access_token', token);
-      localStorage.setItem('unipulse_refresh_token', refToken);
-      localStorage.setItem('unipulse_user_profile', JSON.stringify(loggedUser));
+      if (rememberMe) {
+        localStorage.setItem('unipulse_access_token', token);
+        localStorage.setItem('unipulse_refresh_token', refToken);
+        localStorage.setItem('unipulse_user_profile', JSON.stringify(loggedUser));
+        sessionStorage.removeItem('unipulse_access_token');
+        sessionStorage.removeItem('unipulse_refresh_token');
+        sessionStorage.removeItem('unipulse_user_profile');
+      } else {
+        sessionStorage.setItem('unipulse_access_token', token);
+        sessionStorage.setItem('unipulse_refresh_token', refToken);
+        sessionStorage.setItem('unipulse_user_profile', JSON.stringify(loggedUser));
+        localStorage.removeItem('unipulse_access_token');
+        localStorage.removeItem('unipulse_refresh_token');
+        localStorage.removeItem('unipulse_user_profile');
+      }
     }
 
     setAccessToken(token);
@@ -164,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (data: LoginFormData): Promise<BackendAuthResponse> => {
     try {
       const res = await authService.login(data);
-      handleAuthSuccess(res);
+      handleAuthSuccess(res, data.rememberMe ?? false);
       return res;
     } catch (error: any) {
       setIsAuthenticated(false);
@@ -182,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (data: RegisterFormData): Promise<BackendAuthResponse> => {
     try {
       const res = await authService.register(data);
-      handleAuthSuccess(res);
+      handleAuthSuccess(res, true);
       return res;
     } catch (error: any) {
       setIsAuthenticated(false);
@@ -202,6 +226,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('unipulse_access_token');
       localStorage.removeItem('unipulse_refresh_token');
       localStorage.removeItem('unipulse_user_profile');
+      sessionStorage.removeItem('unipulse_access_token');
+      sessionStorage.removeItem('unipulse_refresh_token');
+      sessionStorage.removeItem('unipulse_user_profile');
     }
     setAccessToken(null);
     setRefreshToken(null);

@@ -32,7 +32,9 @@ const processQueue = (error: unknown, token: string | null = null) => {
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
-      const accessToken = localStorage.getItem('unipulse_access_token');
+      const accessToken =
+        localStorage.getItem('unipulse_access_token') ||
+        sessionStorage.getItem('unipulse_access_token');
       if (accessToken && config.headers && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
@@ -78,12 +80,17 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       if (typeof window !== 'undefined') {
-        const refreshToken = localStorage.getItem('unipulse_refresh_token');
+        const isLocal = !!localStorage.getItem('unipulse_refresh_token');
+        const refreshToken =
+          localStorage.getItem('unipulse_refresh_token') ||
+          sessionStorage.getItem('unipulse_refresh_token');
 
         if (!refreshToken) {
           isRefreshing = false;
           localStorage.removeItem('unipulse_access_token');
           localStorage.removeItem('unipulse_refresh_token');
+          sessionStorage.removeItem('unipulse_access_token');
+          sessionStorage.removeItem('unipulse_refresh_token');
           return Promise.reject(error);
         }
 
@@ -95,8 +102,13 @@ apiClient.interceptors.response.use(
           const newAccessToken = data.accessToken;
           const newRefreshToken = data.refreshToken || refreshToken;
 
-          localStorage.setItem('unipulse_access_token', newAccessToken);
-          localStorage.setItem('unipulse_refresh_token', newRefreshToken);
+          if (isLocal) {
+            localStorage.setItem('unipulse_access_token', newAccessToken);
+            localStorage.setItem('unipulse_refresh_token', newRefreshToken);
+          } else {
+            sessionStorage.setItem('unipulse_access_token', newAccessToken);
+            sessionStorage.setItem('unipulse_refresh_token', newRefreshToken);
+          }
 
           apiClient.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
           if (originalRequest.headers) {
@@ -109,6 +121,8 @@ apiClient.interceptors.response.use(
           processQueue(refreshError, null);
           localStorage.removeItem('unipulse_access_token');
           localStorage.removeItem('unipulse_refresh_token');
+          sessionStorage.removeItem('unipulse_access_token');
+          sessionStorage.removeItem('unipulse_refresh_token');
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

@@ -25,7 +25,7 @@ export default function LoginPage() {
     defaultValues: {
       email: '',
       password: '',
-      rememberMe: true,
+      rememberMe: false,
     },
   });
 
