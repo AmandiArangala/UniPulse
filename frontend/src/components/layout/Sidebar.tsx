@@ -43,10 +43,12 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   LECTURER: [
-    { label: 'Module Radar', href: '/', icon: LayoutDashboard },
-    { label: 'Attention Queue', href: '/lecturer/attention', icon: AlertTriangle, badge: '14' },
+    { label: 'Assigned Modules', href: '/lecturer/modules', icon: BookOpen },
+    { label: 'Assessment Creator', href: '/lecturer/assessments', icon: Sliders, badge: 'Dynamic' },
+    { label: 'Marks Entry Grid', href: '/lecturer/marks', icon: GraduationCap, badge: 'Spreadsheet' },
+    { label: 'Attendance Tracker', href: '/lecturer/attendance', icon: Calendar },
+    { label: 'Attention Queue', href: '/lecturer/attention', icon: AlertTriangle, badge: '3' },
     { label: 'Difficulty Analyzer', href: '/lecturer/difficulty', icon: BarChart3 },
-    { label: 'Assessments', href: '/lecturer/assessments', icon: BookOpen },
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   ADVISOR: [
