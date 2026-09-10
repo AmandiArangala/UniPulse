@@ -51,7 +51,7 @@ export function AttendanceSessionManager({ session, onSaveRecords }: AttendanceS
       toast.success('Attendance records saved successfully');
     } catch {
       toast.error('Failed to save attendance records');
-    } fontally {
+    } finally {
       setIsSaving(false);
     }
   };
