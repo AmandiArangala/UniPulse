@@ -52,7 +52,7 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   ADVISOR: [
-    { label: 'Caseload Matrix', href: '/', icon: LayoutDashboard },
+    { label: 'Caseload Matrix', href: '/advisor/caseload', icon: LayoutDashboard },
     { label: 'Interventions', href: '/advisor/interventions', icon: Users, badge: 'Active' },
     { label: 'Outcome Analytics', href: '/advisor/analytics', icon: BarChart3 },
     { label: 'Profile & Security', href: '/profile', icon: User },
