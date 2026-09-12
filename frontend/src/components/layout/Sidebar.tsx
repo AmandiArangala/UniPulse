@@ -61,6 +61,7 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
     { label: 'Institutional Analytics', href: '/', icon: LayoutDashboard },
     { label: 'User Directory & Roles', href: '/admin/users', icon: Users, badge: 'System' },
     { label: 'Security & Audit Logs', href: '/admin/audit-logs', icon: ShieldCheck, badge: 'Audit' },
+    { label: 'System Health & Status', href: '/admin/system-health', icon: Activity, badge: 'Live' },
     { label: 'Cohort Comparison', href: '/admin/cohorts', icon: GraduationCap },
     { label: 'Difficulty Index', href: '/admin/modules', icon: FolderGit2 },
     { label: 'ETL & Data Quality', href: '/admin/data-quality', icon: ShieldCheck, badge: 'Clean' },
