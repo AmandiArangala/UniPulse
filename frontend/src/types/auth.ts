@@ -1,6 +1,6 @@
 export type UserRole = 'STUDENT' | 'LECTURER' | 'ADVISOR' | 'ADMIN';
 
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export interface UserProfile {
   id: string;
