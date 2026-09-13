@@ -20,6 +20,8 @@ import {
   Smartphone,
   Clock,
   Sparkles,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +29,9 @@ export default function ProfilePage() {
   const { user, role, updateProfile, accessToken } = useAuth();
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Split name into first and last name
   const nameParts = user.name.split(' ');
@@ -256,12 +261,22 @@ export default function ProfilePage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Current Password
                   </label>
-                  <input
-                    {...registerPassword('currentPassword')}
-                    type="password"
-                    placeholder="••••••••••••"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      {...registerPassword('currentPassword')}
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      className="w-full pl-3 pr-9 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+                      title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                   {passwordErrors.currentPassword && (
                     <p className="text-xs text-rose-500 mt-0.5">{passwordErrors.currentPassword.message}</p>
                   )}
@@ -271,12 +286,22 @@ export default function ProfilePage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     New Password
                   </label>
-                  <input
-                    {...registerPassword('newPassword')}
-                    type="password"
-                    placeholder="••••••••••••"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      {...registerPassword('newPassword')}
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      className="w-full pl-3 pr-9 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                   {passwordErrors.newPassword && (
                     <p className="text-xs text-rose-500 mt-0.5">{passwordErrors.newPassword.message}</p>
                   )}
@@ -286,12 +311,22 @@ export default function ProfilePage() {
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Confirm New Password
                   </label>
-                  <input
-                    {...registerPassword('confirmPassword')}
-                    type="password"
-                    placeholder="••••••••••••"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      {...registerPassword('confirmPassword')}
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      className="w-full pl-3 pr-9 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                   {passwordErrors.confirmPassword && (
                     <p className="text-xs text-rose-500 mt-0.5">{passwordErrors.confirmPassword.message}</p>
                   )}

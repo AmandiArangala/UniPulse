@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginFormData } from '@/lib/validations/auth';
 import { useAuth } from '@/context/AuthContext';
-import { Lock, Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -124,12 +125,20 @@ export default function LoginPage() {
                 register('password').onChange(e);
                 handleInputChange();
               }}
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••••••"
-              className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${
+              className={`w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-slate-900 border ${
                 errors.password ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:ring-indigo-500'
               } text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all`}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
           {errors.password && (
             <p className="text-xs text-rose-400 mt-1">{errors.password.message}</p>

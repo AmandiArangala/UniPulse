@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { resetPasswordSchema, ResetPasswordFormData } from '@/lib/validations/auth';
 import { authService } from '@/lib/auth-service';
-import { KeyRound, Lock, ArrowRight, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { KeyRound, Lock, ArrowRight, ArrowLeft, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 function ResetPasswordForm() {
@@ -16,6 +16,8 @@ function ResetPasswordForm() {
   const defaultToken = searchParams.get('token') || '';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const {
     register,
@@ -80,12 +82,20 @@ function ResetPasswordForm() {
           <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             {...register('password')}
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="••••••••••••"
-            className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${
+            className={`w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-slate-900 border ${
               errors.password ? 'border-rose-500' : 'border-slate-800 focus:ring-indigo-500'
             } text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all`}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
         {errors.password && (
           <p className="text-xs text-rose-400 mt-1">{errors.password.message}</p>
@@ -101,12 +111,20 @@ function ResetPasswordForm() {
           <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             {...register('confirmPassword')}
-            type="password"
+            type={showConfirmPassword ? 'text' : 'password'}
             placeholder="••••••••••••"
-            className={`w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-900 border ${
+            className={`w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-slate-900 border ${
               errors.confirmPassword ? 'border-rose-500' : 'border-slate-800 focus:ring-indigo-500'
             } text-white placeholder-slate-500 focus:outline-none focus:ring-2 transition-all`}
           />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+            title={showConfirmPassword ? 'Hide password' : 'Show password'}
+          >
+            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
         </div>
         {errors.confirmPassword && (
           <p className="text-xs text-rose-400 mt-1">{errors.confirmPassword.message}</p>

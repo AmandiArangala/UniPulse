@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, UserPlus, Shield, Mail, Building, Key, RefreshCw } from 'lucide-react';
+import { X, UserPlus, Shield, Mail, Building, Key, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { CreateUserPayload } from '@/types/admin';
 import { UserRole } from '@/types/auth';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ export function CreateUserModal({ isOpen, onClose, onSubmit }: CreateUserModalPr
   const [role, setRole] = useState<UserRole>('STUDENT');
   const [departmentName, setDepartmentName] = useState('Computer Science');
   const [password, setPassword] = useState('TempPass#2026');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -192,11 +193,19 @@ export function CreateUserModal({ isOpen, onClose, onSubmit }: CreateUserModalPr
             <div className="relative">
               <Key className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
-                type="text"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
