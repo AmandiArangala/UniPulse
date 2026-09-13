@@ -20,13 +20,14 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final LecturerRepository lecturerRepository;
+    private final AdvisorRepository advisorRepository;
     private final FacultyRepository facultyRepository;
     private final DepartmentRepository departmentRepository;
     private final ProgramRepository programRepository;
 
     @Override
     public void run(String... args) {
-        log.info("Checking & auto-provisioning missing student/lecturer profiles for registered users...");
+        log.info("Checking & auto-provisioning missing student/lecturer/advisor profiles for registered users...");
         syncUnprovisionedUsers();
     }
 
@@ -77,6 +78,15 @@ public class DataInitializer implements CommandLineRunner {
                         .build();
                 lecturerRepository.save(lecturer);
                 log.info("Auto-synced Lecturer profile for existing user: {} -> {}", user.getEmail(), empNum);
+            } else if (user.getRole() == UserRole.ADVISOR && !advisorRepository.existsById(user.getId())) {
+                String empNum = "ADV-2026-" + String.format("%04d", (int) (Math.random() * 9000 + 1000));
+                Advisor advisor = Advisor.builder()
+                        .user(user)
+                        .employeeNumber(empNum)
+                        .department(department)
+                        .build();
+                advisorRepository.save(advisor);
+                log.info("Auto-synced Advisor profile for existing user: {} -> {}", user.getEmail(), empNum);
             }
         }
     }
