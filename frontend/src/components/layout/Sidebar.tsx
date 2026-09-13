@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  ShieldAlert,
+  BookOpenCheck,
   Zap,
   FolderGit2,
   User,
@@ -60,11 +62,12 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { label: 'Institutional Analytics', href: '/', icon: LayoutDashboard },
     { label: 'User Directory & Roles', href: '/admin/users', icon: Users, badge: 'System' },
-    { label: 'Security & Audit Logs', href: '/admin/audit-logs', icon: ShieldCheck, badge: 'Audit' },
+    { label: 'Academic Catalog', href: '/admin/catalog', icon: BookOpenCheck, badge: 'Manager' },
+    { label: 'Data Audit & Integrity', href: '/admin/data-audit', icon: ShieldAlert, badge: 'Audit' },
+    { label: 'Security & Audit Logs', href: '/admin/audit-logs', icon: ShieldCheck },
     { label: 'System Health & Status', href: '/admin/system-health', icon: Activity, badge: 'Live' },
     { label: 'Cohort Comparison', href: '/admin/cohorts', icon: GraduationCap },
     { label: 'Difficulty Index', href: '/admin/modules', icon: FolderGit2 },
-    { label: 'ETL & Data Quality', href: '/admin/data-quality', icon: ShieldCheck, badge: 'Clean' },
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
 };
