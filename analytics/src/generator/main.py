@@ -11,6 +11,7 @@ from generator.config import SCALE_PRESETS, DEFAULT_SEED, DEFAULT_OUTPUT_SQL
 from generator.utils import seed_everything, Timer
 from generator.academic import AcademicStructureGenerator
 from generator.personnel import PersonnelGenerator
+from generator.students import StudentGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -64,7 +65,21 @@ def main():
         # 2. Personnel Accounts (Admins, Lecturers, Advisors)
         personnel_gen = PersonnelGenerator(scale_cfg, academic_data["departments"])
         personnel_data = personnel_gen.generate()
-        print(f"[Personnel Data] Generated {len(personnel_data['lecturers'])} Lecturers, {len(personnel_data['advisors'])} Academic Advisors, and {len(personnel_data['users'])} Auth User Accounts.")
+        print(f"[Personnel Data] Generated {len(personnel_data['lecturers'])} Lecturers, {len(personnel_data['advisors'])} Academic Advisors, and {len(personnel_data['users'])} Personnel User Accounts.")
+
+        # 3. Scaled Students (Users & Profiles)
+        student_gen = StudentGenerator(scale_cfg, academic_data["programs"])
+        student_data = student_gen.generate()
+        total_users = len(personnel_data["users"]) + len(student_data["users"])
+        
+        # Persona counts summary
+        persona_counts = {}
+        for s in student_data["students"]:
+            p_key = str(s["persona"])
+            persona_counts[p_key] = persona_counts.get(p_key, 0) + 1
+
+        print(f"[Student Data] Generated {len(student_data['students']):,} Student Profiles (Personas: {persona_counts}).")
+        print(f"[System Users] Total Auth Users: {total_users:,}.")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
