@@ -15,6 +15,7 @@ from generator.students import StudentGenerator
 from generator.enrollments import EnrollmentGenerator
 from generator.assessments import AssessmentStructureGenerator
 from generator.scores import AssessmentScoresGenerator
+from generator.attendance import AttendanceGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -122,6 +123,22 @@ def main():
         missed_count = sum(1 for r in scores_data["assessment_results"] if r["score_obtained"] == 0.0)
         late_count = sum(1 for r in scores_data["assessment_results"] if r["is_late"])
         print(f"[Score Results Data] Generated {len(scores_data['assessment_results']):,} Assessment Scores (Anomalies: {missed_count:,} Missed Tests/Zeroes, {late_count:,} Late Submissions).")
+
+        # 7. Attendance Sessions & Records (~400k target)
+        attendance_gen = AttendanceGenerator(
+            scale_cfg,
+            student_data["students"],
+            enrollment_data["enrollments"],
+            academic_data["modules"],
+            academic_data["semesters"],
+            personnel_data["lecturers"]
+        )
+        attendance_data = attendance_gen.generate()
+        att_breakdown = {}
+        for r in attendance_data["attendance_records"]:
+            st = r["status"]
+            att_breakdown[st] = att_breakdown.get(st, 0) + 1
+        print(f"[Attendance Data] Generated {len(attendance_data['attendance_sessions']):,} Lecture Sessions & {len(attendance_data['attendance_records']):,} Attendance Records (Breakdown: {att_breakdown}).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
