@@ -13,6 +13,7 @@ from generator.academic import AcademicStructureGenerator
 from generator.personnel import PersonnelGenerator
 from generator.students import StudentGenerator
 from generator.enrollments import EnrollmentGenerator
+from generator.assessments import AssessmentStructureGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -97,6 +98,16 @@ def main():
             st = e["status"]
             enr_statuses[st] = enr_statuses.get(st, 0) + 1
         print(f"[Enrollment Data] Generated {len(enrollment_data['enrollments']):,} Module Enrollments (Breakdown: {enr_statuses}).")
+
+        # 5. Assessment Suites & Diagnostic Topics
+        assessment_gen = AssessmentStructureGenerator(
+            scale_cfg,
+            academic_data["modules"],
+            academic_data["semesters"],
+            academic_data["departments"]
+        )
+        assessment_data = assessment_gen.generate()
+        print(f"[Assessment Data] Generated {len(assessment_data['assessments']):,} Assessment Suites & {len(assessment_data['topics']):,} Diagnostic Topic Tags.")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
