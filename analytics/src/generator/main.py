@@ -10,6 +10,7 @@ from typing import Dict, Any
 from generator.config import SCALE_PRESETS, DEFAULT_SEED, DEFAULT_OUTPUT_SQL
 from generator.utils import seed_everything, Timer
 from generator.academic import AcademicStructureGenerator
+from generator.personnel import PersonnelGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -59,6 +60,11 @@ def main():
         academic_gen = AcademicStructureGenerator(scale_cfg)
         academic_data = academic_gen.generate()
         print(f"[Academic Data] Generated {len(academic_data['faculties'])} Faculties, {len(academic_data['departments'])} Departments, {len(academic_data['programs'])} Programs, {len(academic_data['modules'])} Modules, {len(academic_data['prerequisites'])} Prerequisites, {len(academic_data['semesters'])} Semesters.")
+
+        # 2. Personnel Accounts (Admins, Lecturers, Advisors)
+        personnel_gen = PersonnelGenerator(scale_cfg, academic_data["departments"])
+        personnel_data = personnel_gen.generate()
+        print(f"[Personnel Data] Generated {len(personnel_data['lecturers'])} Lecturers, {len(personnel_data['advisors'])} Academic Advisors, and {len(personnel_data['users'])} Auth User Accounts.")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
