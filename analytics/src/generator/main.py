@@ -16,6 +16,7 @@ from generator.enrollments import EnrollmentGenerator
 from generator.assessments import AssessmentStructureGenerator
 from generator.scores import AssessmentScoresGenerator
 from generator.attendance import AttendanceGenerator
+from generator.events import LearningEventsGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -139,6 +140,20 @@ def main():
             st = r["status"]
             att_breakdown[st] = att_breakdown.get(st, 0) + 1
         print(f"[Attendance Data] Generated {len(attendance_data['attendance_sessions']):,} Lecture Sessions & {len(attendance_data['attendance_records']):,} Attendance Records (Breakdown: {att_breakdown}).")
+
+        # 8. JSONB Student Learning Events (~200k target)
+        events_gen = LearningEventsGenerator(
+            scale_cfg,
+            student_data["students"],
+            academic_data["modules"],
+            academic_data["semesters"]
+        )
+        events_data = events_gen.generate()
+        event_types = {}
+        for ev in events_data["student_learning_events"]:
+            et = ev["event_type"]
+            event_types[et] = event_types.get(et, 0) + 1
+        print(f"[Learning Events Data] Generated {len(events_data['student_learning_events']):,} JSONB Learning & Clickstream Events (Types: {event_types}).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
