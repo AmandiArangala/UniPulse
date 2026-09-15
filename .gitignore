@@ -47,8 +47,9 @@ backend/.project
 backend/.settings/
 
 # Python / Analytics
-analytics/__pycache__/
-analytics/*.py[cod]
+__pycache__/
+*.py[cod]
+*$py.class
 analytics/.venv/
 analytics/venv/
 analytics/env/
