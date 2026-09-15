@@ -14,6 +14,7 @@ from generator.personnel import PersonnelGenerator
 from generator.students import StudentGenerator
 from generator.enrollments import EnrollmentGenerator
 from generator.assessments import AssessmentStructureGenerator
+from generator.scores import AssessmentScoresGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -108,6 +109,19 @@ def main():
         )
         assessment_data = assessment_gen.generate()
         print(f"[Assessment Data] Generated {len(assessment_data['assessments']):,} Assessment Suites & {len(assessment_data['topics']):,} Diagnostic Topic Tags.")
+
+        # 6. Assessment Scores & Anomalies (~150k target)
+        scores_gen = AssessmentScoresGenerator(
+            scale_cfg,
+            student_data["students"],
+            enrollment_data["enrollments"],
+            assessment_data["assessments"],
+            academic_data["modules"]
+        )
+        scores_data = scores_gen.generate()
+        missed_count = sum(1 for r in scores_data["assessment_results"] if r["score_obtained"] == 0.0)
+        late_count = sum(1 for r in scores_data["assessment_results"] if r["is_late"])
+        print(f"[Score Results Data] Generated {len(scores_data['assessment_results']):,} Assessment Scores (Anomalies: {missed_count:,} Missed Tests/Zeroes, {late_count:,} Late Submissions).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
