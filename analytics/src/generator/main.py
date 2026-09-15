@@ -12,6 +12,7 @@ from generator.utils import seed_everything, Timer
 from generator.academic import AcademicStructureGenerator
 from generator.personnel import PersonnelGenerator
 from generator.students import StudentGenerator
+from generator.enrollments import EnrollmentGenerator
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -80,6 +81,22 @@ def main():
 
         print(f"[Student Data] Generated {len(student_data['students']):,} Student Profiles (Personas: {persona_counts}).")
         print(f"[System Users] Total Auth Users: {total_users:,}.")
+
+        # 4. Course Enrollments
+        enrollment_gen = EnrollmentGenerator(
+            scale_cfg,
+            student_data["students"],
+            academic_data["modules"],
+            academic_data["semesters"],
+            academic_data["programs"],
+            academic_data["departments"]
+        )
+        enrollment_data = enrollment_gen.generate()
+        enr_statuses = {}
+        for e in enrollment_data["enrollments"]:
+            st = e["status"]
+            enr_statuses[st] = enr_statuses.get(st, 0) + 1
+        print(f"[Enrollment Data] Generated {len(enrollment_data['enrollments']):,} Module Enrollments (Breakdown: {enr_statuses}).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
