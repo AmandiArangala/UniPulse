@@ -17,6 +17,7 @@ from generator.assessments import AssessmentStructureGenerator
 from generator.scores import AssessmentScoresGenerator
 from generator.attendance import AttendanceGenerator
 from generator.events import LearningEventsGenerator
+from generator.star_schema import StarSchemaExporter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -154,6 +155,29 @@ def main():
             et = ev["event_type"]
             event_types[et] = event_types.get(et, 0) + 1
         print(f"[Learning Events Data] Generated {len(events_data['student_learning_events']):,} JSONB Learning & Clickstream Events (Types: {event_types}).")
+
+        # 9. Analytical Star Schema Data Warehouse Exporter
+        star_exporter = StarSchemaExporter(
+            scale_cfg,
+            academic_data["faculties"],
+            academic_data["departments"],
+            academic_data["programs"],
+            academic_data["modules"],
+            academic_data["semesters"],
+            personnel_data["users"] + student_data["users"],
+            student_data["students"],
+            enrollment_data["enrollments"],
+            attendance_data["attendance_sessions"],
+            attendance_data["attendance_records"],
+            assessment_data["assessments"],
+            scores_data["assessment_results"]
+        )
+        star_data = star_exporter.generate()
+        att_levels = {}
+        for f in star_data["fact_performance"]:
+            al = f["attention_level"]
+            att_levels[al] = att_levels.get(al, 0) + 1
+        print(f"[Star Schema Warehouse Data] Aggregated {len(star_data['dim_student']):,} dim_student, {len(star_data['dim_module'])} dim_module, {len(star_data['dim_semester'])} dim_semester, and {len(star_data['fact_performance']):,} fact_performance rows (Attention Levels: {att_levels}).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
