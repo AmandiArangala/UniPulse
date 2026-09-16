@@ -3,6 +3,7 @@ UniPulse Synthetic Academic Data Generator CLI Orchestrator
 Phase 4: Data Engine & Star Schema Engine
 """
 
+import os
 import sys
 import argparse
 from typing import Dict, Any
@@ -18,6 +19,7 @@ from generator.scores import AssessmentScoresGenerator
 from generator.attendance import AttendanceGenerator
 from generator.events import LearningEventsGenerator
 from generator.star_schema import StarSchemaExporter
+from generator.exporter import SQLExporter
 
 def parse_args():
     parser = argparse.ArgumentParser(description="UniPulse Synthetic Academic Data Generator")
@@ -178,6 +180,23 @@ def main():
             al = f["attention_level"]
             att_levels[al] = att_levels.get(al, 0) + 1
         print(f"[Star Schema Warehouse Data] Aggregated {len(star_data['dim_student']):,} dim_student, {len(star_data['dim_module'])} dim_module, {len(star_data['dim_semester'])} dim_semester, and {len(star_data['fact_performance']):,} fact_performance rows (Attention Levels: {att_levels}).")
+
+        # 10. Multi-Format PostgreSQL Batch SQL File Exporter
+        combined_payload = {
+            **academic_data,
+            **personnel_data,
+            **student_data,
+            **enrollment_data,
+            **assessment_data,
+            **scores_data,
+            **attendance_data,
+            **events_data,
+            **star_data
+        }
+        sql_exporter = SQLExporter(args.output, combined_payload)
+        out_file = sql_exporter.export()
+        file_size_mb = os.path.getsize(out_file) / (1024 * 1024)
+        print(f"[Database Seed Exporter] Successfully written seed script to '{out_file}' ({file_size_mb:.2f} MB).")
 
     print("[SUCCESS] Synthetic dataset pipeline architecture initialized successfully.")
 
