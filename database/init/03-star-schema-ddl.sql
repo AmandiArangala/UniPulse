@@ -127,3 +127,44 @@ ALTER TABLE unipulse_analytics.dim_semester ADD COLUMN IF NOT EXISTS updated_at 
 COMMENT ON TABLE unipulse_analytics.dim_semester IS 'Academic semester dimension for time-bounded cohort aggregation.';
 
 CREATE INDEX IF NOT EXISTS idx_dim_semester_year ON unipulse_analytics.dim_semester(academic_year);
+
+
+-- ============================================================================
+-- 6. CENTRAL FACT TABLE: fact_performance (Academic Performance Fact Table)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS unipulse_analytics.fact_performance (
+    fact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_key UUID NOT NULL REFERENCES unipulse_analytics.dim_student(student_key) ON DELETE CASCADE,
+    module_key UUID NOT NULL REFERENCES unipulse_analytics.dim_module(module_key) ON DELETE CASCADE,
+    semester_key UUID NOT NULL REFERENCES unipulse_analytics.dim_semester(semester_key) ON DELETE CASCADE,
+    program_key UUID REFERENCES unipulse_analytics.dim_program(program_key) ON DELETE CASCADE,
+    date_key DATE REFERENCES unipulse_analytics.dim_date(date_key) ON DELETE SET NULL,
+    scores NUMERIC(5, 2) DEFAULT 0.00,
+    attendance_rate NUMERIC(5, 2) DEFAULT 0.00,
+    submission_rate NUMERIC(5, 2) DEFAULT 0.00,
+    engagement_score NUMERIC(5, 2) DEFAULT 0.00,
+    final_grade NUMERIC(5, 2),
+    health_score NUMERIC(5, 2) DEFAULT 0.00,
+    attention_level VARCHAR(20) DEFAULT 'SATISFACTORY' CHECK (attention_level IN ('EXCELLENT', 'SATISFACTORY', 'ATTENTION_REQUIRED', 'CRITICAL')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_key, module_key, semester_key)
+);
+
+-- Ensure table structure alignment for existing columns
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS program_key UUID REFERENCES unipulse_analytics.dim_program(program_key) ON DELETE CASCADE;
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS date_key DATE REFERENCES unipulse_analytics.dim_date(date_key) ON DELETE SET NULL;
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS scores NUMERIC(5, 2) DEFAULT 0.00;
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS engagement_score NUMERIC(5, 2) DEFAULT 0.00;
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS final_grade NUMERIC(5, 2);
+ALTER TABLE unipulse_analytics.fact_performance ADD COLUMN IF NOT EXISTS health_score NUMERIC(5, 2) DEFAULT 0.00;
+
+COMMENT ON TABLE unipulse_analytics.fact_performance IS 'Central fact table recording student module academic performance metrics, attendance, engagement, and composite health scores.';
+
+-- Foreign key indexes for rapid dimensional joins
+CREATE INDEX IF NOT EXISTS idx_fact_perf_student_fk ON unipulse_analytics.fact_performance(student_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_module_fk ON unipulse_analytics.fact_performance(module_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_semester_fk ON unipulse_analytics.fact_performance(semester_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_program_fk ON unipulse_analytics.fact_performance(program_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_date_fk ON unipulse_analytics.fact_performance(date_key);
+

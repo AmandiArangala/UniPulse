@@ -295,14 +295,21 @@ CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_semester (
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.fact_performance (
     fact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    student_key UUID REFERENCES unipulse_analytics.dim_student(student_key),
-    module_key UUID REFERENCES unipulse_analytics.dim_module(module_key),
-    semester_key UUID REFERENCES unipulse_analytics.dim_semester(semester_key),
-    attendance_rate NUMERIC(5, 2),
-    assessment_avg NUMERIC(5, 2),
-    submission_rate NUMERIC(5, 2),
-    academic_health_score NUMERIC(5, 2),
-    attention_level VARCHAR(20)
+    student_key UUID NOT NULL REFERENCES unipulse_analytics.dim_student(student_key) ON DELETE CASCADE,
+    module_key UUID NOT NULL REFERENCES unipulse_analytics.dim_module(module_key) ON DELETE CASCADE,
+    semester_key UUID NOT NULL REFERENCES unipulse_analytics.dim_semester(semester_key) ON DELETE CASCADE,
+    program_key UUID REFERENCES unipulse_analytics.dim_program(program_key) ON DELETE CASCADE,
+    date_key DATE REFERENCES unipulse_analytics.dim_date(date_key) ON DELETE SET NULL,
+    scores NUMERIC(5, 2) DEFAULT 0.00,
+    attendance_rate NUMERIC(5, 2) DEFAULT 0.00,
+    submission_rate NUMERIC(5, 2) DEFAULT 0.00,
+    engagement_score NUMERIC(5, 2) DEFAULT 0.00,
+    final_grade NUMERIC(5, 2),
+    health_score NUMERIC(5, 2) DEFAULT 0.00,
+    attention_level VARCHAR(20) DEFAULT 'SATISFACTORY' CHECK (attention_level IN ('EXCELLENT', 'SATISFACTORY', 'ATTENTION_REQUIRED', 'CRITICAL')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(student_key, module_key, semester_key)
 );
 
 -- ============================================================================
