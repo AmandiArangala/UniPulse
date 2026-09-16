@@ -312,6 +312,70 @@ CREATE TABLE IF NOT EXISTS unipulse_analytics.fact_performance (
     UNIQUE(student_key, module_key, semester_key)
 );
 
+-- Foreign key indexes for rapid dimensional joins
+CREATE INDEX IF NOT EXISTS idx_fact_perf_student_fk ON unipulse_analytics.fact_performance(student_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_module_fk ON unipulse_analytics.fact_performance(module_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_semester_fk ON unipulse_analytics.fact_performance(semester_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_program_fk ON unipulse_analytics.fact_performance(program_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_date_fk ON unipulse_analytics.fact_performance(date_key);
+
+-- High-Speed OLAP Compound Indexes
+CREATE INDEX IF NOT EXISTS idx_fact_perf_sem_prog_health ON unipulse_analytics.fact_performance (semester_key, program_key, health_score);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_student_module ON unipulse_analytics.fact_performance (student_key, module_key);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_date_health ON unipulse_analytics.fact_performance (date_key, health_score DESC);
+CREATE INDEX IF NOT EXISTS idx_fact_perf_attention ON unipulse_analytics.fact_performance (attention_level, health_score);
+
+-- Views
+CREATE OR REPLACE VIEW unipulse_analytics.vw_at_risk_students_olap AS
+SELECT 
+    fp.fact_id,
+    ds.student_key,
+    ds.student_number,
+    ds.full_name AS student_name,
+    ds.email AS student_email,
+    dp.program_code,
+    dp.program_name,
+    dm.module_code,
+    dm.module_title,
+    dsem.semester_name,
+    dsem.academic_year,
+    fp.scores AS assessment_avg,
+    fp.attendance_rate,
+    fp.submission_rate,
+    fp.engagement_score,
+    fp.health_score,
+    fp.attention_level,
+    fp.updated_at AS calculated_at
+FROM unipulse_analytics.fact_performance fp
+JOIN unipulse_analytics.dim_student ds ON fp.student_key = ds.student_key
+JOIN unipulse_analytics.dim_module dm ON fp.module_key = dm.module_key
+JOIN unipulse_analytics.dim_semester dsem ON fp.semester_key = dsem.semester_key
+LEFT JOIN unipulse_analytics.dim_program dp ON fp.program_key = dp.program_key
+WHERE fp.attention_level IN ('CRITICAL', 'ATTENTION_REQUIRED');
+
+CREATE OR REPLACE VIEW unipulse_analytics.vw_program_performance_summary AS
+SELECT 
+    dp.program_code,
+    dp.program_name,
+    dp.degree_level,
+    dp.faculty_name,
+    dsem.semester_name,
+    dsem.academic_year,
+    COUNT(DISTINCT fp.student_key) AS total_enrolled_students,
+    COUNT(DISTINCT fp.module_key) AS total_modules_taught,
+    ROUND(AVG(fp.scores), 2) AS avg_assessment_score,
+    ROUND(AVG(fp.attendance_rate), 2) AS avg_attendance_rate,
+    ROUND(AVG(fp.submission_rate), 2) AS avg_submission_rate,
+    ROUND(AVG(fp.engagement_score), 2) AS avg_engagement_score,
+    ROUND(AVG(fp.health_score), 2) AS avg_academic_health_score,
+    SUM(CASE WHEN fp.attention_level = 'CRITICAL' THEN 1 ELSE 0 END) AS critical_students_count,
+    SUM(CASE WHEN fp.attention_level = 'ATTENTION_REQUIRED' THEN 1 ELSE 0 END) AS attention_required_students_count,
+    SUM(CASE WHEN fp.attention_level = 'EXCELLENT' THEN 1 ELSE 0 END) AS excellent_students_count
+FROM unipulse_analytics.fact_performance fp
+JOIN unipulse_analytics.dim_semester dsem ON fp.semester_key = dsem.semester_key
+LEFT JOIN unipulse_analytics.dim_program dp ON fp.program_key = dp.program_key
+GROUP BY dp.program_code, dp.program_name, dp.degree_level, dp.faculty_name, dsem.semester_name, dsem.academic_year;
+
 -- ============================================================================
 -- 5. INITIAL METADATA SEEDING
 -- ============================================================================
