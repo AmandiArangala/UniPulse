@@ -232,30 +232,65 @@ CREATE INDEX IF NOT EXISTS idx_attendance_records_student ON unipulse_core.atten
 
 -- ============================================================================
 -- 4. ANALYTICAL STAR SCHEMA TABLES (OLAP / Power BI / Python Analytics)
+-- (Detailed DDL extended in 03-star-schema-ddl.sql)
 -- ============================================================================
+
+CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_date (
+    date_key DATE PRIMARY KEY,
+    year INT NOT NULL,
+    quarter INT NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+    month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+    month_name VARCHAR(15) NOT NULL,
+    day INT NOT NULL CHECK (day BETWEEN 1 AND 31),
+    day_of_week VARCHAR(15) NOT NULL,
+    is_weekend BOOLEAN NOT NULL DEFAULT FALSE,
+    academic_week INT CHECK (academic_week BETWEEN 1 AND 20),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_program (
+    program_key UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    program_code VARCHAR(20) UNIQUE NOT NULL,
+    program_name VARCHAR(150) NOT NULL,
+    degree_level VARCHAR(50) NOT NULL DEFAULT 'UNDERGRADUATE',
+    department_name VARCHAR(150) NOT NULL,
+    faculty_name VARCHAR(150) NOT NULL,
+    total_credits INT NOT NULL DEFAULT 120,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_student (
     student_key UUID PRIMARY KEY,
-    student_number VARCHAR(30),
-    full_name VARCHAR(160),
+    student_number VARCHAR(30) UNIQUE NOT NULL,
+    full_name VARCHAR(160) NOT NULL,
+    email VARCHAR(150),
     program_name VARCHAR(150),
     department_name VARCHAR(150),
     faculty_name VARCHAR(150),
-    enrollment_year INT
+    enrollment_year INT NOT NULL,
+    current_gpa NUMERIC(3, 2) DEFAULT 0.00,
+    academic_status VARCHAR(30) DEFAULT 'GOOD_STANDING',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_module (
     module_key UUID PRIMARY KEY,
-    module_code VARCHAR(20),
-    module_title VARCHAR(150),
-    credit_hours INT,
-    department_name VARCHAR(150)
+    module_code VARCHAR(20) UNIQUE NOT NULL,
+    module_title VARCHAR(150) NOT NULL,
+    credit_hours INT NOT NULL DEFAULT 3,
+    department_name VARCHAR(150) NOT NULL,
+    faculty_name VARCHAR(150),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.dim_semester (
     semester_key UUID PRIMARY KEY,
-    semester_name VARCHAR(50),
-    academic_year INT
+    semester_name VARCHAR(50) NOT NULL,
+    academic_year INT NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    is_current BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS unipulse_analytics.fact_performance (
