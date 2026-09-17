@@ -1,9 +1,10 @@
 """
 UniPulse Analytical Star Schema Aggregator & Data Warehouse ETL Engine
-Transforms operational OLTP data into dim_student, dim_module, dim_semester, and fact_performance.
+Transforms operational OLTP data into dim_student, dim_module, dim_semester, dim_program, dim_date, and fact_performance.
 """
 
 from typing import List, Dict, Any, Tuple
+from datetime import datetime, date, timedelta
 from generator.config import GeneratorScale
 from generator.utils import generate_uuid
 
@@ -27,6 +28,12 @@ class StarSchemaExporter:
         assessment_results: List[Dict[str, Any]]
     ):
         self.scale = scale
+        self.faculties = faculties
+        self.departments = departments
+        self.programs = programs
+        self.modules = modules
+        self.semesters = semesters
+
         self.fac_map = {f["id"]: f["name"] for f in faculties}
         self.dept_map = {d["id"]: d for d in departments}
         self.prog_map = {p["id"]: p for p in programs}
@@ -38,10 +45,9 @@ class StarSchemaExporter:
         self.enrollments = enrollments
         self.assessments_map = {a["id"]: a for a in assessments}
 
-        # Index attendance by (student_id, session_id) and session by session_id
+        # Index attendance by session and group by (student_id, module_id, semester_id)
         self.session_map = {s["id"]: s for s in attendance_sessions}
         
-        # Group attendance records by (student_id, module_id, semester_id)
         self.student_mod_attendance: Dict[Tuple[str, str, str], List[str]] = {}
         for r in attendance_records:
             sess = self.session_map.get(r["session_id"])
@@ -61,6 +67,8 @@ class StarSchemaExporter:
                     self.student_mod_results[key] = []
                 self.student_mod_results[key].append(res)
 
+        self.dim_dates: List[Dict[str, Any]] = []
+        self.dim_programs: List[Dict[str, Any]] = []
         self.dim_students: List[Dict[str, Any]] = []
         self.dim_modules: List[Dict[str, Any]] = []
         self.dim_semesters: List[Dict[str, Any]] = []
@@ -71,12 +79,62 @@ class StarSchemaExporter:
         for sem in semesters:
             if sem["start_date"] <= s_date <= sem["end_date"]:
                 return sem["id"]
-        return semesters[0]["id"]
+        return semesters[0]["id"] if semesters else ""
+
+    def _generate_dim_date(self) -> None:
+        """Populate temporal dim_date records across academic calendar years."""
+        start_d = date(2026, 1, 1)
+        end_d = date(2026, 12, 31)
+        curr_d = start_d
+
+        while curr_d <= end_d:
+            acad_week = 1
+            for sem in self.semesters:
+                s_start = datetime.strptime(str(sem["start_date"]), "%Y-%m-%d").date() if isinstance(sem["start_date"], str) else sem["start_date"]
+                s_end = datetime.strptime(str(sem["end_date"]), "%Y-%m-%d").date() if isinstance(sem["end_date"], str) else sem["end_date"]
+                if s_start <= curr_d <= s_end:
+                    days_diff = (curr_d - s_start).days
+                    acad_week = max(1, min(20, (days_diff // 7) + 1))
+                    break
+
+            self.dim_dates.append({
+                "date_key": curr_d.strftime("%Y-%m-%d"),
+                "year": curr_d.year,
+                "quarter": (curr_d.month - 1) // 3 + 1,
+                "month": curr_d.month,
+                "month_name": curr_d.strftime("%B"),
+                "day": curr_d.day,
+                "day_of_week": curr_d.strftime("%A"),
+                "is_weekend": curr_d.weekday() in [5, 6],
+                "academic_week": acad_week
+            })
+            curr_d += timedelta(days=1)
+
+    def _generate_dim_program(self) -> None:
+        """Populate dim_program dimension records from academic program structures."""
+        for p in self.programs:
+            d = self.dept_map.get(p.get("department_id"), {})
+            f_name = self.fac_map.get(d.get("faculty_id"), "Faculty of Science & Technology")
+            self.dim_programs.append({
+                "program_key": p["id"],
+                "program_code": p["code"],
+                "program_name": p["name"],
+                "degree_level": p.get("degree_level", "UNDERGRADUATE"),
+                "department_name": d.get("name", "Department of Computer Science"),
+                "faculty_name": f_name,
+                "total_credits": p.get("total_credits", 120)
+            })
 
     def generate(self) -> Dict[str, List[Dict[str, Any]]]:
         """Aggregate operational data into dimension and fact records."""
 
-        # 1. Dimension: dim_student
+        # 1. Dimension: dim_date
+        self._generate_dim_date()
+
+        # 2. Dimension: dim_program
+        self._generate_dim_program()
+
+        # 3. Dimension: dim_student
         for s in self.students:
             u = self.user_map.get(s["user_id"], {})
             p = self.prog_map.get(s["program_id"], {})
@@ -89,36 +147,46 @@ class StarSchemaExporter:
                 "student_key": s["user_id"],
                 "student_number": s["student_number"],
                 "full_name": full_name,
+                "email": u.get("email", f"{s['student_number'].lower()}@unipulse.edu"),
                 "program_name": p.get("name", "BSc in Computer Science"),
                 "department_name": d.get("name", "Department of Computer Science"),
                 "faculty_name": f_name,
-                "enrollment_year": s["enrollment_year"]
+                "enrollment_year": s["enrollment_year"],
+                "current_gpa": s.get("gpa", 3.20),
+                "academic_status": s.get("academic_status", "GOOD_STANDING")
             })
 
-        # 2. Dimension: dim_module
+        # 4. Dimension: dim_module
         for m in self.module_map.values():
             d = self.dept_map.get(m["department_id"], {})
+            f_name = self.fac_map.get(d.get("faculty_id"), "Faculty of Science & Technology")
             self.dim_modules.append({
                 "module_key": m["id"],
                 "module_code": m["code"],
                 "module_title": m["title"],
                 "credit_hours": m["credit_hours"],
-                "department_name": d.get("name", "Department of Computer Science")
+                "department_name": d.get("name", "Department of Computer Science"),
+                "faculty_name": f_name
             })
 
-        # 3. Dimension: dim_semester
+        # 5. Dimension: dim_semester
         for sem in self.semester_map.values():
             self.dim_semesters.append({
                 "semester_key": sem["id"],
                 "semester_name": sem["name"],
-                "academic_year": sem["academic_year"]
+                "academic_year": sem["academic_year"],
+                "start_date": str(sem.get("start_date", "2026-01-15")),
+                "end_date": str(sem.get("end_date", "2026-05-30")),
+                "is_current": sem.get("is_current", False)
             })
 
-        # 4. Fact Table: fact_performance
+        # 6. Fact Table: fact_performance
         for enr in self.enrollments:
             s_id = enr["student_id"]
             m_id = enr["module_id"]
             sem_id = enr["semester_id"]
+            s_obj = next((st for st in self.students if st["user_id"] == s_id), {})
+            p_id = s_obj.get("program_id")
             key = (s_id, m_id, sem_id)
 
             # Attendance rate
@@ -159,6 +227,8 @@ class StarSchemaExporter:
                 "student_key": s_id,
                 "module_key": m_id,
                 "semester_key": sem_id,
+                "program_key": p_id,
+                "date_key": "2026-03-15",
                 "attendance_rate": att_rate,
                 "assessment_avg": ass_avg,
                 "submission_rate": sub_rate,
@@ -167,6 +237,8 @@ class StarSchemaExporter:
             })
 
         return {
+            "dim_date": self.dim_dates,
+            "dim_program": self.dim_programs,
             "dim_student": self.dim_students,
             "dim_module": self.dim_modules,
             "dim_semester": self.dim_semesters,
