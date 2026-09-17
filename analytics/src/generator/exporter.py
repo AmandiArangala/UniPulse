@@ -187,36 +187,52 @@ class SQLExporter:
                 lambda x: f"{escape_sql_string(x['id'])}, {escape_sql_string(x['student_id'])}, {escape_sql_string(x['event_type'])}, {format_sql_jsonb(x['event_details'])}, {escape_sql_string(x['created_at'])}"
             )
 
-            # 18. Star Schema: dim_student
+            # 18. Star Schema: dim_date
+            self._write_batch_inserts(
+                f, "unipulse_analytics.dim_date",
+                ["date_key", "year", "quarter", "month", "month_name", "day", "day_of_week", "is_weekend", "academic_week"],
+                self.data.get("dim_date", []),
+                lambda x: f"{escape_sql_string(x['date_key'])}, {x['year']}, {x['quarter']}, {x['month']}, {escape_sql_string(x['month_name'])}, {x['day']}, {escape_sql_string(x['day_of_week'])}, {'TRUE' if x['is_weekend'] else 'FALSE'}, {x['academic_week']}"
+            )
+
+            # 19. Star Schema: dim_program
+            self._write_batch_inserts(
+                f, "unipulse_analytics.dim_program",
+                ["program_key", "program_code", "program_name", "degree_level", "department_name", "faculty_name", "total_credits"],
+                self.data.get("dim_program", []),
+                lambda x: f"{escape_sql_string(x['program_key'])}, {escape_sql_string(x['program_code'])}, {escape_sql_string(x['program_name'])}, {escape_sql_string(x['degree_level'])}, {escape_sql_string(x['department_name'])}, {escape_sql_string(x['faculty_name'])}, {x['total_credits']}"
+            )
+
+            # 20. Star Schema: dim_student
             self._write_batch_inserts(
                 f, "unipulse_analytics.dim_student",
-                ["student_key", "student_number", "full_name", "program_name", "department_name", "faculty_name", "enrollment_year"],
+                ["student_key", "student_number", "full_name", "email", "program_name", "department_name", "faculty_name", "enrollment_year", "current_gpa", "academic_status"],
                 self.data.get("dim_student", []),
-                lambda x: f"{escape_sql_string(x['student_key'])}, {escape_sql_string(x['student_number'])}, {escape_sql_string(x['full_name'])}, {escape_sql_string(x['program_name'])}, {escape_sql_string(x['department_name'])}, {escape_sql_string(x['faculty_name'])}, {x['enrollment_year']}"
+                lambda x: f"{escape_sql_string(x['student_key'])}, {escape_sql_string(x['student_number'])}, {escape_sql_string(x['full_name'])}, {escape_sql_string(x.get('email', ''))}, {escape_sql_string(x['program_name'])}, {escape_sql_string(x['department_name'])}, {escape_sql_string(x['faculty_name'])}, {x['enrollment_year']}, {x.get('current_gpa', 0.00)}, {escape_sql_string(x.get('academic_status', 'GOOD_STANDING'))}"
             )
 
-            # 19. Star Schema: dim_module
+            # 21. Star Schema: dim_module
             self._write_batch_inserts(
                 f, "unipulse_analytics.dim_module",
-                ["module_key", "module_code", "module_title", "credit_hours", "department_name"],
+                ["module_key", "module_code", "module_title", "credit_hours", "department_name", "faculty_name"],
                 self.data.get("dim_module", []),
-                lambda x: f"{escape_sql_string(x['module_key'])}, {escape_sql_string(x['module_code'])}, {escape_sql_string(x['module_title'])}, {x['credit_hours']}, {escape_sql_string(x['department_name'])}"
+                lambda x: f"{escape_sql_string(x['module_key'])}, {escape_sql_string(x['module_code'])}, {escape_sql_string(x['module_title'])}, {x['credit_hours']}, {escape_sql_string(x['department_name'])}, {escape_sql_string(x.get('faculty_name', 'Faculty of Science & Technology'))}"
             )
 
-            # 20. Star Schema: dim_semester
+            # 22. Star Schema: dim_semester
             self._write_batch_inserts(
                 f, "unipulse_analytics.dim_semester",
-                ["semester_key", "semester_name", "academic_year"],
+                ["semester_key", "semester_name", "academic_year", "start_date", "end_date", "is_current"],
                 self.data.get("dim_semester", []),
-                lambda x: f"{escape_sql_string(x['semester_key'])}, {escape_sql_string(x['semester_name'])}, {x['academic_year']}"
+                lambda x: f"{escape_sql_string(x['semester_key'])}, {escape_sql_string(x['semester_name'])}, {x['academic_year']}, {escape_sql_string(str(x.get('start_date', '2026-01-15')))}, {escape_sql_string(str(x.get('end_date', '2026-05-30')))}, {'TRUE' if x.get('is_current', False) else 'FALSE'}"
             )
 
-            # 21. Star Schema: fact_performance
+            # 23. Star Schema: fact_performance
             self._write_batch_inserts(
                 f, "unipulse_analytics.fact_performance",
-                ["fact_id", "student_key", "module_key", "semester_key", "attendance_rate", "assessment_avg", "submission_rate", "academic_health_score", "attention_level"],
+                ["fact_id", "student_key", "module_key", "semester_key", "program_key", "date_key", "scores", "attendance_rate", "submission_rate", "engagement_score", "final_grade", "health_score", "attention_level"],
                 self.data.get("fact_performance", []),
-                lambda x: f"{escape_sql_string(x['fact_id'])}, {escape_sql_string(x['student_key'])}, {escape_sql_string(x['module_key'])}, {escape_sql_string(x['semester_key'])}, {x['attendance_rate']}, {x['assessment_avg']}, {x['submission_rate']}, {x['academic_health_score']}, {escape_sql_string(x['attention_level'])}"
+                lambda x: f"{escape_sql_string(x['fact_id'])}, {escape_sql_string(x['student_key'])}, {escape_sql_string(x['module_key'])}, {escape_sql_string(x['semester_key'])}, {escape_sql_string(x.get('program_key'))}, {escape_sql_string(x.get('date_key', '2026-03-15'))}, {x.get('scores', x.get('assessment_avg', 0.0))}, {x['attendance_rate']}, {x['submission_rate']}, {x.get('engagement_score', 80.0)}, {x.get('final_grade', 75.0)}, {x.get('health_score', x.get('academic_health_score', 80.0))}, {escape_sql_string(x['attention_level'])}"
             )
 
             f.write("\nCOMMIT;\n")
