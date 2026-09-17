@@ -859,7 +859,59 @@ Machine-learning models are treated as **decision-support tools**, not automated
 * GitHub
 * Docker
 * Docker Compose
-* GitHub Actions
+---
+
+# 📊 Analytical Star Schema Data Warehousing
+
+UniPulse includes a high-performance **PostgreSQL Analytical Data Warehouse** structured using Ralph Kimball's Star Schema methodology under the `unipulse_analytics` database schema.
+
+### 🏛️ Star Schema Architecture
+
+```
+                       +-----------------------+
+                       |       dim_date        |
+                       +-----------------------+
+                                   |
+                                   | FK
++--------------------+             v             +--------------------+
+|    dim_student     |----FK--->+-----+<---FK----|     dim_module     |
++--------------------+          |  F  |          +--------------------+
+                                |  A  |
++--------------------+          |  C  |          +--------------------+
+|    dim_program     |----FK--->|  T  |<---FK----|    dim_semester    |
++--------------------+          +-----+          +--------------------+
+                                   |
+                       fact_performance
+```
+
+#### 📐 Dimensional Tables (`unipulse_analytics`)
+* **`dim_student`**: Enriched profile with student number, name, email, program, department, faculty, enrollment year, GPA, and academic status.
+* **`dim_module`**: Module metadata including code, title, credit hours, department, and faculty.
+* **`dim_semester`**: Term metadata with academic year, start date, end date, and current flag.
+* **`dim_program`**: Degree program hierarchy storing program codes, degree levels (`UNDERGRADUATE`/`POSTGRADUATE`), faculty affiliations, and required credits.
+* **`dim_date`**: Calendar dimension populating 365-day time series data, quarters, days of week, weekend flags, and dynamic academic term weeks (1–20).
+
+#### 🎯 Central Fact Table (`unipulse_analytics.fact_performance`)
+* **Measures**: `scores` (test average), `attendance_rate`, `submission_rate`, `engagement_score` (LMS clickstream telemetry), `final_grade`, `health_score` (composite academic health).
+* **Composite Health Formula**: 
+  $$\text{Health Score} = 0.35 \times \text{scores} + 0.35 \times \text{attendance} + 0.15 \times \text{submissions} + 0.15 \times \text{engagement}$$
+* **Attention Categories**: `EXCELLENT` ($\ge 80$), `SATISFACTORY` ($65-79$), `ATTENTION_REQUIRED` ($50-64$), `CRITICAL` ($< 50$).
+
+### ⚡ OLAP Query Acceleration & Views
+* **Compound Indexes**: `idx_fact_perf_sem_prog_health`, `idx_fact_perf_student_module`, `idx_fact_perf_date_health`, `idx_fact_perf_attention`.
+* **Analytical Views**:
+  * `vw_at_risk_students_olap`: Denormalized real-time early warning view joining fact and dimension tables.
+  * `vw_program_performance_summary`: Program-level executive summary aggregation view.
+
+### 🔄 Automated Python ETL Pipeline
+* Run incremental synchronization: `python analytics/src/etl_sync.py`
+* Run full data warehouse rebuild: `python analytics/src/etl_sync.py --rebuild`
+* Run integrity & performance test: `python analytics/src/test_warehouse.py`
+
+### 🌐 Backend Data Warehouse REST API Endpoints
+* `GET /api/v1/analytics/warehouse/summary`: Data warehouse statistics & average health scores.
+* `GET /api/v1/analytics/warehouse/at-risk`: At-risk student early warning OLAP payload.
+* `GET /api/v1/analytics/warehouse/program-performance`: Degree program academic performance summaries.
 
 ---
 
