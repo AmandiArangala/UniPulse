@@ -1,9 +1,10 @@
 """
 UniPulse Analytical Star Schema Aggregator & Data Warehouse ETL Engine
 Transforms operational OLTP data into dim_student, dim_module, dim_semester, dim_program, dim_date, and fact_performance.
+Phase 4: Data Engine & Star Schema Metric Computation Engine.
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, date, timedelta
 from generator.config import GeneratorScale
 from generator.utils import generate_uuid
@@ -25,7 +26,8 @@ class StarSchemaExporter:
         attendance_sessions: List[Dict[str, Any]],
         attendance_records: List[Dict[str, Any]],
         assessments: List[Dict[str, Any]],
-        assessment_results: List[Dict[str, Any]]
+        assessment_results: List[Dict[str, Any]],
+        learning_events: Optional[List[Dict[str, Any]]] = None
     ):
         self.scale = scale
         self.faculties = faculties
@@ -44,6 +46,7 @@ class StarSchemaExporter:
         self.students = students
         self.enrollments = enrollments
         self.assessments_map = {a["id"]: a for a in assessments}
+        self.learning_events = learning_events or []
 
         # Index attendance by session and group by (student_id, module_id, semester_id)
         self.session_map = {s["id"]: s for s in attendance_sessions}
@@ -66,6 +69,13 @@ class StarSchemaExporter:
                 if key not in self.student_mod_results:
                     self.student_mod_results[key] = []
                 self.student_mod_results[key].append(res)
+
+        # Index student clickstream learning events count by student_id
+        self.student_event_counts: Dict[str, int] = {}
+        for ev in self.learning_events:
+            st_id = ev.get("student_id")
+            if st_id:
+                self.student_event_counts[st_id] = self.student_event_counts.get(st_id, 0) + 1
 
         self.dim_dates: List[Dict[str, Any]] = []
         self.dim_programs: List[Dict[str, Any]] = []
@@ -180,7 +190,7 @@ class StarSchemaExporter:
                 "is_current": sem.get("is_current", False)
             })
 
-        # 6. Fact Table: fact_performance
+        # 6. Central Fact Table: fact_performance Metric Computation Engine
         for enr in self.enrollments:
             s_id = enr["student_id"]
             m_id = enr["module_id"]
@@ -189,7 +199,7 @@ class StarSchemaExporter:
             p_id = s_obj.get("program_id")
             key = (s_id, m_id, sem_id)
 
-            # Attendance rate
+            # 6a. Measure: Attendance Rate
             att_statuses = self.student_mod_attendance.get(key, [])
             if att_statuses:
                 p_cnt = sum(1 for st in att_statuses if st in ["PRESENT", "LATE"])
@@ -197,7 +207,7 @@ class StarSchemaExporter:
             else:
                 att_rate = 85.00
 
-            # Assessment score average & submission rate
+            # 6b. Measure: Assessment Score Average & Submission Rate
             ass_res_list = self.student_mod_results.get(key, [])
             if ass_res_list:
                 valid_scores = [r["score_obtained"] for r in ass_res_list if r["score_obtained"] is not None]
@@ -206,13 +216,30 @@ class StarSchemaExporter:
                 ass_avg = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else 70.00
                 sub_rate = round((submitted_cnt / len(ass_res_list)) * 100.0, 2)
             else:
-                ass_avg = enr["final_grade"] if enr["final_grade"] is not None else 72.00
+                ass_avg = float(enr["final_grade"]) if enr.get("final_grade") is not None else 72.00
                 sub_rate = 90.00
 
-            # Composite Academic Health Score
-            health_score = round((0.40 * att_rate) + (0.50 * ass_avg) + (0.10 * sub_rate), 2)
+            # 6c. Measure: LMS Clickstream Engagement Score
+            raw_event_cnt = self.student_event_counts.get(s_id, 0)
+            if raw_event_cnt > 0:
+                engagement_score = round(min(100.0, max(30.0, (raw_event_cnt / 40.0) * 100.0)), 2)
+            else:
+                engagement_score = round(min(100.0, max(40.0, (att_rate * 0.5) + (ass_avg * 0.5))), 2)
 
-            # Attention Level Categorization
+            # 6d. Measure: Final Grade
+            final_grade = float(enr.get("final_grade")) if enr.get("final_grade") is not None else ass_avg
+
+            # 6e. Composite Weighted Academic Health Score Engine
+            # Weights: 35% Assessment Avg + 35% Attendance + 15% Submission Rate + 15% Engagement Score
+            health_score = round(
+                (0.35 * ass_avg) +
+                (0.35 * att_rate) +
+                (0.15 * sub_rate) +
+                (0.15 * engagement_score),
+                2
+            )
+
+            # 6f. Attention Level Risk Categorization
             if health_score >= 80.0:
                 attention_level = "EXCELLENT"
             elif health_score >= 65.0:
@@ -229,10 +256,12 @@ class StarSchemaExporter:
                 "semester_key": sem_id,
                 "program_key": p_id,
                 "date_key": "2026-03-15",
+                "scores": ass_avg,
                 "attendance_rate": att_rate,
-                "assessment_avg": ass_avg,
                 "submission_rate": sub_rate,
-                "academic_health_score": health_score,
+                "engagement_score": engagement_score,
+                "final_grade": final_grade,
+                "health_score": health_score,
                 "attention_level": attention_level
             })
 

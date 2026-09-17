@@ -175,7 +175,8 @@ def main():
             attendance_data["attendance_sessions"],
             attendance_data["attendance_records"],
             assessment_data["assessments"],
-            scores_data["assessment_results"]
+            scores_data["assessment_results"],
+            events_data["student_learning_events"]
         )
         star_data = star_exporter.generate()
         att_levels = {}
