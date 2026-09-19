@@ -456,12 +456,181 @@ class UniPulseETLPipeline:
 
     def load(self, transformed_data: Dict[str, pd.DataFrame]) -> bool:
         """
-        Stage 4: Bulk Loading & Upsert (Idempotent DW load into unipulse_analytics).
-        Will be fully implemented in Commit 4.
+        Stage 4: Idempotent Bulk DW Loading & Upsert Engine (SQLAlchemy & PostgreSQL ON CONFLICT).
+        - Purges target analytics schema if rebuild=True
+        - Populates dim_date, dim_program, dim_student, dim_module, dim_semester
+        - Performs batch upsert into unipulse_analytics.fact_performance
         """
-        self.logger.info("[Load Stage] Preparing idempotent dimensional DW bulk load...")
-        # Stub for Commit 4 implementation
-        return True
+        self.logger.info("[Load Stage] Executing idempotent bulk DW loading with SQLAlchemy transaction management...")
+        if not self.engine:
+            self.logger.error("Cannot execute load stage: SQLAlchemy engine is not initialized.")
+            return False
+
+        try:
+            with self.engine.begin() as conn:
+                # 0. Handle Rebuild Flag Purge
+                if self.rebuild:
+                    self.logger.warning("Rebuild flag active: Purging unipulse_analytics tables...")
+                    conn.execute(text("TRUNCATE unipulse_analytics.fact_performance CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_student CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_module CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_semester CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_program CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_date CASCADE;"))
+                    self.logger.info("  ✓ Purged target analytical schema tables.")
+
+                # 1. Load dim_date (Populate 2026 Calendar)
+                self.logger.info("  -> Synchronizing dim_date dimension...")
+                from datetime import date, timedelta
+                date_records = []
+                start_d = date(2026, 1, 1)
+                end_d = date(2026, 12, 31)
+                curr_d = start_d
+                while curr_d <= end_d:
+                    date_records.append({
+                        "date_key": curr_d,
+                        "year": curr_d.year,
+                        "quarter": (curr_d.month - 1) // 3 + 1,
+                        "month": curr_d.month,
+                        "month_name": curr_d.strftime("%B"),
+                        "day": curr_d.day,
+                        "day_of_week": curr_d.strftime("%A"),
+                        "is_weekend": curr_d.weekday() in [5, 6],
+                        "academic_week": max(1, min(20, (curr_d.timetuple().tm_yday // 7)))
+                    })
+                    curr_d += timedelta(days=1)
+
+                dim_date_upsert = text("""
+                    INSERT INTO unipulse_analytics.dim_date
+                    (date_key, year, quarter, month, month_name, day, day_of_week, is_weekend, academic_week)
+                    VALUES (:date_key, :year, :quarter, :month, :month_name, :day, :day_of_week, :is_weekend, :academic_week)
+                    ON CONFLICT (date_key) DO UPDATE SET
+                        year = EXCLUDED.year, quarter = EXCLUDED.quarter, month = EXCLUDED.month, academic_week = EXCLUDED.academic_week;
+                """)
+                conn.execute(dim_date_upsert, date_records)
+                self.logger.info(f"  ✓ Synchronized {len(date_records)} dim_date records.")
+
+                # 2. Load dim_program
+                programs = transformed_data.get("programs", pd.DataFrame())
+                if not programs.empty:
+                    self.logger.info("  -> Synchronizing dim_program dimension...")
+                    prog_records = programs.to_dict(orient="records")
+                    prog_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_program
+                        (program_key, program_code, program_name, degree_level, department_name, faculty_name, total_credits)
+                        VALUES (:program_key, :program_code, :program_name, :degree_level, :department_name, :faculty_name, :total_credits)
+                        ON CONFLICT (program_code) DO UPDATE SET
+                            program_name = EXCLUDED.program_name,
+                            degree_level = EXCLUDED.degree_level,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            total_credits = EXCLUDED.total_credits;
+                    """)
+                    conn.execute(prog_upsert, prog_records)
+                    self.logger.info(f"  ✓ Upserted {len(prog_records)} dim_program records.")
+
+                # 3. Load dim_student
+                students = transformed_data.get("students", pd.DataFrame())
+                if not students.empty:
+                    self.logger.info("  -> Synchronizing dim_student dimension...")
+                    stud_records = students.to_dict(orient="records")
+                    stud_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_student
+                        (student_key, student_number, full_name, email, program_name, department_name, faculty_name, enrollment_year, current_gpa, academic_status)
+                        VALUES (:student_key, :student_number, :full_name, :email, :program_name, :department_name, :faculty_name, :enrollment_year, :current_gpa, :academic_status)
+                        ON CONFLICT (student_number) DO UPDATE SET
+                            full_name = EXCLUDED.full_name,
+                            email = EXCLUDED.email,
+                            program_name = EXCLUDED.program_name,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            current_gpa = EXCLUDED.current_gpa,
+                            academic_status = EXCLUDED.academic_status,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(stud_upsert, stud_records)
+                    self.logger.info(f"  ✓ Upserted {len(stud_records)} dim_student records.")
+
+                # 4. Load dim_module
+                modules = transformed_data.get("modules", pd.DataFrame())
+                if not modules.empty:
+                    self.logger.info("  -> Synchronizing dim_module dimension...")
+                    mod_records = modules.to_dict(orient="records")
+                    mod_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_module
+                        (module_key, module_code, module_title, credit_hours, department_name, faculty_name)
+                        VALUES (:module_key, :module_code, :module_title, :credit_hours, :department_name, :faculty_name)
+                        ON CONFLICT (module_code) DO UPDATE SET
+                            module_title = EXCLUDED.module_title,
+                            credit_hours = EXCLUDED.credit_hours,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(mod_upsert, mod_records)
+                    self.logger.info(f"  ✓ Upserted {len(mod_records)} dim_module records.")
+
+                # 5. Load dim_semester
+                semesters = transformed_data.get("semesters", pd.DataFrame())
+                if not semesters.empty:
+                    self.logger.info("  -> Synchronizing dim_semester dimension...")
+                    sem_records = semesters.to_dict(orient="records")
+                    sem_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_semester
+                        (semester_key, semester_name, academic_year, start_date, end_date, is_current)
+                        VALUES (:semester_key, :semester_name, :academic_year, :start_date, :end_date, :is_current)
+                        ON CONFLICT (semester_key) DO UPDATE SET
+                            semester_name = EXCLUDED.semester_name,
+                            academic_year = EXCLUDED.academic_year,
+                            start_date = EXCLUDED.start_date,
+                            end_date = EXCLUDED.end_date,
+                            is_current = EXCLUDED.is_current,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(sem_upsert, sem_records)
+                    self.logger.info(f"  ✓ Upserted {len(sem_records)} dim_semester records.")
+
+                # 6. Bulk Load Central Fact Table: fact_performance
+                fact_df = transformed_data.get("fact_performance", pd.DataFrame())
+                if not fact_df.empty:
+                    self.logger.info("  -> Executing bulk upsert into fact_performance...")
+                    fact_records = fact_df.to_dict(orient="records")
+                    
+                    fact_upsert = text("""
+                        INSERT INTO unipulse_analytics.fact_performance (
+                            student_key, module_key, semester_key, program_key, date_key,
+                            scores, attendance_rate, submission_rate, engagement_score, final_grade, health_score, attention_level
+                        )
+                        VALUES (
+                            :student_key, :module_key, :semester_key, :program_key, :date_key,
+                            :scores, :attendance_rate, :submission_rate, :engagement_score, :final_grade, :health_score, :attention_level
+                        )
+                        ON CONFLICT (student_key, module_key, semester_key) DO UPDATE SET
+                            program_key = EXCLUDED.program_key,
+                            date_key = EXCLUDED.date_key,
+                            scores = EXCLUDED.scores,
+                            attendance_rate = EXCLUDED.attendance_rate,
+                            submission_rate = EXCLUDED.submission_rate,
+                            engagement_score = EXCLUDED.engagement_score,
+                            final_grade = EXCLUDED.final_grade,
+                            health_score = EXCLUDED.health_score,
+                            attention_level = EXCLUDED.attention_level,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+
+                    # Chunk batch execution to prevent memory overflow
+                    chunk_size = self.batch_size
+                    for i in range(0, len(fact_records), chunk_size):
+                        batch = fact_records[i : i + chunk_size]
+                        conn.execute(fact_upsert, batch)
+                        
+                    self.logger.info(f"  ✓ Successfully bulk upserted {len(fact_records)} fact_performance records.")
+
+            self.logger.info("[Load Stage] Data Warehouse loading transaction committed successfully.")
+            return True
+        except Exception as err:
+            self.logger.error(f"Error during bulk DW loading stage: {err}", exc_info=True)
+            return False
 
     def run(self) -> bool:
         """Orchestrates end-to-end execution of the ETL pipeline."""
