@@ -121,23 +121,190 @@ class UniPulseETLPipeline:
 
     def extract(self) -> Dict[str, pd.DataFrame]:
         """
-        Stage 1: Extraction Stage (Extract raw OLTP DataFrames).
-        Will be fully implemented in Commit 2.
+        Stage 1: Extraction Stage (Extract raw OLTP DataFrames via SQLAlchemy).
+        Queries unipulse_core tables: programs, students, modules, semesters, enrollments, assessment_results, attendance_records.
         """
-        self.logger.info("[Extract Stage] Preparing operational record extraction queries...")
+        self.logger.info("[Extract Stage] Querying operational OLTP tables from unipulse_core...")
         extracted_data: Dict[str, pd.DataFrame] = {}
-        # Stub for Commit 2 implementation
+
+        if not self.engine:
+            raise RuntimeError("Cannot execute extract stage: SQLAlchemy engine is not initialized.")
+
+        try:
+            with self.engine.connect() as conn:
+                # 1. Programs
+                prog_sql = """
+                    SELECT 
+                        p.id AS program_key, p.code AS program_code, p.name AS program_name, 
+                        p.degree_level, d.name AS department_name, f.name AS faculty_name, p.total_credits
+                    FROM unipulse_core.programs p
+                    JOIN unipulse_core.departments d ON p.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["programs"] = pd.read_sql_query(prog_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['programs'])} program records.")
+
+                # 2. Students
+                stud_sql = """
+                    SELECT 
+                        s.user_id AS student_key, s.student_number, 
+                        CONCAT(u.first_name, ' ', u.last_name) AS full_name, u.email,
+                        p.name AS program_name, d.name AS department_name, f.name AS faculty_name,
+                        s.enrollment_year, s.gpa AS current_gpa, s.academic_status
+                    FROM unipulse_core.students s
+                    JOIN unipulse_core.users u ON s.user_id = u.id
+                    JOIN unipulse_core.programs p ON s.program_id = p.id
+                    JOIN unipulse_core.departments d ON p.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["students"] = pd.read_sql_query(stud_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['students'])} student profile records.")
+
+                # 3. Modules
+                mod_sql = """
+                    SELECT 
+                        m.id AS module_key, m.code AS module_code, m.title AS module_title, 
+                        m.credit_hours, d.name AS department_name, f.name AS faculty_name
+                    FROM unipulse_core.modules m
+                    JOIN unipulse_core.departments d ON m.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["modules"] = pd.read_sql_query(mod_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['modules'])} module records.")
+
+                # 4. Semesters
+                sem_sql = """
+                    SELECT 
+                        s.id AS semester_key, s.name AS semester_name, s.academic_year, 
+                        s.start_date, s.end_date, s.is_current
+                    FROM unipulse_core.semesters s;
+                """
+                extracted_data["semesters"] = pd.read_sql_query(sem_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['semesters'])} semester records.")
+
+                # 5. Enrollments
+                enr_sql = """
+                    SELECT 
+                        e.id AS enrollment_id, e.student_id, e.module_id, e.semester_id, 
+                        e.final_grade, e.letter_grade, e.status
+                    FROM unipulse_core.enrollments e;
+                """
+                extracted_data["enrollments"] = pd.read_sql_query(enr_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['enrollments'])} enrollment records.")
+
+                # 6. Assessment Results
+                ass_sql = """
+                    SELECT 
+                        ar.id AS result_id, ar.student_id, ar.assessment_id, ar.score_obtained, 
+                        ar.submitted_at, ar.is_late, a.module_id, a.semester_id, 
+                        a.weight_percentage, a.max_score, a.due_date
+                    FROM unipulse_core.assessment_results ar
+                    JOIN unipulse_core.assessments a ON ar.assessment_id = a.id;
+                """
+                extracted_data["assessment_results"] = pd.read_sql_query(ass_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['assessment_results'])} assessment result records.")
+
+                # 7. Attendance Records
+                att_sql = """
+                    SELECT 
+                        rec.id AS attendance_id, rec.student_id, rec.status, 
+                        sess.module_id, sess.session_date
+                    FROM unipulse_core.attendance_records rec
+                    JOIN unipulse_core.attendance_sessions sess ON rec.session_id = sess.id;
+                """
+                extracted_data["attendance_records"] = pd.read_sql_query(att_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['attendance_records'])} attendance records.")
+
+        except Exception as err:
+            self.logger.error(f"Error during extraction stage: {err}")
+            raise
+
         return extracted_data
 
     def clean(self, raw_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
-        Stage 2: Data Cleaning & Validation (Missing value imputation, deduplication, range checks).
-        Will be fully implemented in Commit 2.
+        Stage 2: Data Cleaning & Validation Pipeline (Pandas).
+        - Missing value imputation
+        - Duplicate detection & removal
+        - Out-of-bounds score range filtering [0.0, 100.0]
+        - String normalization & GPA bounds enforcement
         """
-        self.logger.info("[Clean Stage] Preparing data cleaning & normalization pipeline...")
-        cleaned_data: Dict[str, pd.DataFrame] = raw_data
-        # Stub for Commit 2 implementation
-        return cleaned_data
+        self.logger.info("[Clean Stage] Running automated Pandas data cleaning & validation pipeline...")
+        cleaned: Dict[str, pd.DataFrame] = {}
+
+        # 1. Clean Programs
+        if "programs" in raw_data and not raw_data["programs"].empty:
+            df = raw_data["programs"].copy()
+            df.drop_duplicates(subset=["program_code"], inplace=True)
+            df["program_name"] = df["program_name"].astype(str).str.strip()
+            df["total_credits"] = df["total_credits"].fillna(120).astype(int)
+            cleaned["programs"] = df
+
+        # 2. Clean Students
+        if "students" in raw_data and not raw_data["students"].empty:
+            df = raw_data["students"].copy()
+            df.drop_duplicates(subset=["student_key"], inplace=True)
+            df["full_name"] = df["full_name"].astype(str).str.strip()
+            df["email"] = df["email"].fillna("unknown@unipulse.edu")
+            df["academic_status"] = df["academic_status"].fillna("GOOD_STANDING").astype(str).str.upper()
+            # Enforce GPA bounds [0.00, 4.00]
+            df["current_gpa"] = df["current_gpa"].fillna(0.0).clip(lower=0.0, upper=4.0)
+            cleaned["students"] = df
+
+        # 3. Clean Modules
+        if "modules" in raw_data and not raw_data["modules"].empty:
+            df = raw_data["modules"].copy()
+            df.drop_duplicates(subset=["module_key"], inplace=True)
+            df["module_title"] = df["module_title"].astype(str).str.strip()
+            df["credit_hours"] = df["credit_hours"].fillna(3).astype(int)
+            cleaned["modules"] = df
+
+        # 4. Clean Semesters
+        if "semesters" in raw_data and not raw_data["semesters"].empty:
+            df = raw_data["semesters"].copy()
+            df.drop_duplicates(subset=["semester_key"], inplace=True)
+            df["is_current"] = df["is_current"].fillna(False).astype(bool)
+            cleaned["semesters"] = df
+
+        # 5. Clean Enrollments
+        if "enrollments" in raw_data and not raw_data["enrollments"].empty:
+            df = raw_data["enrollments"].copy()
+            df.drop_duplicates(subset=["student_id", "module_id", "semester_id"], inplace=True)
+            df["status"] = df["status"].fillna("ENROLLED").astype(str).str.upper()
+            if "final_grade" in df.columns:
+                df["final_grade"] = pd.to_numeric(df["final_grade"], errors="coerce").clip(lower=0.0, upper=100.0)
+            cleaned["enrollments"] = df
+
+        # 6. Clean Assessment Results (Scores Imputation & Bounds Check [0, 100])
+        if "assessment_results" in raw_data and not raw_data["assessment_results"].empty:
+            df = raw_data["assessment_results"].copy()
+            df.drop_duplicates(subset=["student_id", "assessment_id"], inplace=True)
+            
+            # Numeric conversion & Imputation
+            df["max_score"] = pd.to_numeric(df["max_score"], errors="coerce").fillna(100.0)
+            df["max_score"] = df["max_score"].apply(lambda x: 100.0 if x <= 0 else x)
+            df["score_obtained"] = pd.to_numeric(df["score_obtained"], errors="coerce").fillna(0.0)
+            
+            # Calculate percentage score normalized to 100
+            df["percentage_score"] = (df["score_obtained"] / df["max_score"]) * 100.0
+            
+            # Filter / clip out-of-bounds invalid score ranges
+            initial_count = len(df)
+            df["percentage_score"] = df["percentage_score"].clip(lower=0.0, upper=100.0)
+            
+            df["is_late"] = df["is_late"].fillna(False).astype(bool)
+            cleaned["assessment_results"] = df
+            self.logger.info(f"  ✓ Cleaned assessment results ({initial_count} valid records, scores normalized & bounded [0, 100]).")
+
+        # 7. Clean Attendance Records
+        if "attendance_records" in raw_data and not raw_data["attendance_records"].empty:
+            df = raw_data["attendance_records"].copy()
+            df.drop_duplicates(subset=["attendance_id"], inplace=True)
+            df["status"] = df["status"].fillna("ABSENT").astype(str).str.upper()
+            cleaned["attendance_records"] = df
+            self.logger.info(f"  ✓ Cleaned attendance records ({len(df)} records).")
+
+        return cleaned
 
     def transform(self, cleaned_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
