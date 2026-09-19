@@ -306,15 +306,153 @@ class UniPulseETLPipeline:
 
         return cleaned
 
+    @staticmethod
+    def _calculate_trend_slope(scores_series: pd.Series) -> float:
+        """
+        Calculates rolling performance trajectory slope using NumPy linear regression.
+        Returns a normalized trend score between 0.0 and 100.0 (50.0 = neutral/stable).
+        """
+        valid_scores = scores_series.dropna().tolist()
+        n = len(valid_scores)
+        if n < 2:
+            return 50.0  # Baseline neutral trend
+            
+        try:
+            import numpy as np
+            x = np.arange(n)
+            y = np.array(valid_scores, dtype=float)
+            slope, _ = np.polyfit(x, y, 1)
+            # Map slope (-5.0 to +5.0 grade points per test) to score scale [0.0, 100.0]
+            trend_score = 50.0 + (slope * 10.0)
+            return float(np.clip(trend_score, 0.0, 100.0))
+        except Exception:
+            return 50.0
+
     def transform(self, cleaned_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """
-        Stage 3: Feature Engineering & Transformation (Rolling slopes, weighted averages, health score).
-        Will be fully implemented in Commit 3.
+        Stage 3: Feature Engineering & Transformation Engine (Pandas & NumPy).
+        Computes:
+        - Weighted average assessment scores per student/module/semester
+        - Rolling performance trajectory slopes via linear regression
+        - Attendance & submission completion rates
+        - Composite Academic Health Score (40% performance, 20% attendance, 15% submissions, 15% engagement, 10% trend)
+        - Attention level risk categorization (EXCELLENT, SATISFACTORY, ATTENTION_REQUIRED, CRITICAL)
+        - Fact table dataset for unipulse_analytics.fact_performance
         """
-        self.logger.info("[Transform Stage] Preparing feature engineering & metrics computation...")
-        transformed_data: Dict[str, pd.DataFrame] = cleaned_data
-        # Stub for Commit 3 implementation
-        return transformed_data
+        self.logger.info("[Transform Stage] Running feature engineering, rolling slopes & health score computations...")
+        transformed: Dict[str, pd.DataFrame] = dict(cleaned_data)
+
+        enrollments = cleaned_data.get("enrollments", pd.DataFrame())
+        results = cleaned_data.get("assessment_results", pd.DataFrame())
+        attendance = cleaned_data.get("attendance_records", pd.DataFrame())
+        students = cleaned_data.get("students", pd.DataFrame())
+        programs = cleaned_data.get("programs", pd.DataFrame())
+
+        if enrollments.empty:
+            self.logger.warning("Enrollments dataset is empty. Skipping fact_performance transformation.")
+            transformed["fact_performance"] = pd.DataFrame()
+            return transformed
+
+        # Pre-build lookup map for student program_key
+        stud_prog_map = {}
+        if not students.empty and not programs.empty:
+            merged_sp = pd.merge(students, programs, on="program_name", how="left")
+            for _, r in merged_sp.iterrows():
+                stud_prog_map[r["student_key"]] = r.get("program_key", None)
+
+        fact_rows = []
+        today_date = datetime.now().date().strftime("%Y-%m-%d")
+
+        for _, enr in enrollments.iterrows():
+            student_id = enr["student_id"]
+            module_id = enr["module_id"]
+            semester_id = enr["semester_id"]
+
+            # 1. Filter Assessment Results for this Student & Module
+            sub_res = pd.DataFrame()
+            if not results.empty:
+                sub_res = results[(results["student_id"] == student_id) & (results["module_id"] == module_id)]
+
+            # Calculate Weighted Average Assessment Score
+            if not sub_res.empty and "percentage_score" in sub_res.columns:
+                weights = sub_res["weight_percentage"].fillna(1.0)
+                total_weight = weights.sum()
+                if total_weight > 0:
+                    weighted_score = (sub_res["percentage_score"] * weights).sum() / total_weight
+                else:
+                    weighted_score = sub_res["percentage_score"].mean()
+                
+                # Compute Rolling Performance Slope Trend Score
+                trend_score = self._calculate_trend_slope(sub_res["percentage_score"])
+                submission_rate = min(100.0, (len(sub_res) / max(1, len(sub_res["assessment_id"].unique()))) * 100.0)
+            else:
+                weighted_score = float(enr.get("final_grade", 0.0) or 0.0)
+                trend_score = 50.0
+                submission_rate = 0.0 if sub_res.empty else 100.0
+
+            # 2. Filter Attendance for this Student & Module
+            sub_att = pd.DataFrame()
+            if not attendance.empty:
+                sub_att = attendance[(attendance["student_id"] == student_id) & (attendance["module_id"] == module_id)]
+
+            if not sub_att.empty:
+                total_sessions = len(sub_att)
+                present_count = len(sub_att[sub_att["status"] == "PRESENT"])
+                late_count = len(sub_att[sub_att["status"] == "LATE"])
+                att_rate = ((present_count + (0.5 * late_count)) / max(1, total_sessions)) * 100.0
+            else:
+                att_rate = 100.0  # Default baseline if no session tracked
+
+            att_rate = float(np.clip(att_rate, 0.0, 100.0)) if 'np' in locals() else float(max(0.0, min(100.0, att_rate)))
+            submission_rate = float(max(0.0, min(100.0, submission_rate)))
+            weighted_score = float(max(0.0, min(100.0, weighted_score)))
+
+            # 3. Engagement Score (60% attendance + 40% submission completion)
+            engagement_score = (0.60 * att_rate) + (0.40 * submission_rate)
+
+            # 4. Composite Academic Health Score Formula
+            # 40% performance + 20% attendance + 15% submission + 15% engagement + 10% trend slope
+            health_score = (
+                (0.40 * weighted_score) +
+                (0.20 * att_rate) +
+                (0.15 * submission_rate) +
+                (0.15 * engagement_score) +
+                (0.10 * trend_score)
+            )
+            health_score = float(max(0.0, min(100.0, health_score)))
+
+            # 5. Rule-Based Attention Level Risk Categorization
+            if health_score >= 85.0:
+                attention_level = "EXCELLENT"
+            elif health_score >= 70.0:
+                attention_level = "SATISFACTORY"
+            elif health_score >= 50.0:
+                attention_level = "ATTENTION_REQUIRED"
+            else:
+                attention_level = "CRITICAL"
+
+            fact_rows.append({
+                "student_key": student_id,
+                "module_key": module_id,
+                "semester_key": semester_id,
+                "program_key": stud_prog_map.get(student_id, None),
+                "date_key": today_date,
+                "scores": round(weighted_score, 2),
+                "attendance_rate": round(att_rate, 2),
+                "submission_rate": round(submission_rate, 2),
+                "engagement_score": round(engagement_score, 2),
+                "final_grade": round(weighted_score, 2),
+                "health_score": round(health_score, 2),
+                "attention_level": attention_level
+            })
+
+        df_fact = pd.DataFrame(fact_rows)
+        if not df_fact.empty:
+            df_fact.drop_duplicates(subset=["student_key", "module_key", "semester_key"], inplace=True)
+
+        transformed["fact_performance"] = df_fact
+        self.logger.info(f"  ✓ Transformed {len(df_fact)} fact_performance records with rolling slopes & health scores.")
+        return transformed
 
     def load(self, transformed_data: Dict[str, pd.DataFrame]) -> bool:
         """
