@@ -1,8 +1,5 @@
 -- ============================================================================
 -- UniPulse Summary Aggregation Schema & Materialized Views (04-summary-analytics-schema.sql)
--- Platform: PostgreSQL 16 / Supabase
--- Phase 4: Data Engine & Star Schema - Day 20 Deliverable
--- Commit 1: Materialized Summary Tables (student_analytics, module_analytics, semester_analytics)
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS unipulse_analytics;
