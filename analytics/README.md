@@ -1,4 +1,4 @@
-# 🎓 UniPulse Python ETL Pipeline (Phase 4: Data Engine & Star Schema)
+# 🎓 UniPulse Python ETL Pipeline (Data Engine & Star Schema)
 
 The UniPulse Python ETL pipeline (`etl_pipeline.py`) transforms operational OLTP records (`unipulse_core`) into analytical dimensional tables and central fact tables (`unipulse_analytics.fact_performance`) using **Pandas** and **SQLAlchemy**.
 
@@ -26,10 +26,10 @@ The UniPulse Python ETL pipeline (`etl_pipeline.py`) transforms operational OLTP
    - Calculates module attendance rates ($\text{PRESENT} + 0.5 \times \text{LATE}$) and submission completion rates.
    - Computes composite **Academic Health Score** ($40\%$ performance, $20\%$ attendance, $15\%$ submissions, $15\%$ engagement, $10\%$ trend slope).
    - Categorizes risk attention levels (`EXCELLENT`, `SATISFACTORY`, `ATTENTION_REQUIRED`, `CRITICAL`).
-4. **Idempotent Bulk Loading (`load()`)**:
-   - Transaction-managed batch loading into dimension tables (`dim_date`, `dim_program`, `dim_student`, `dim_module`, `dim_semester`).
-   - Idempotent upserts on `fact_performance` using `ON CONFLICT (student_key, module_key, semester_key) DO UPDATE`.
-   - `--rebuild` mode to purge analytical tables prior to loading.
+34. **Summary Aggregation & EDA Views Engine**:
+   - Materialized summary views (`student_analytics`, `module_analytics`, `semester_analytics`) calculating Mean, Standard Deviation (`std`), Pass Rates (% passed >= 50%), and Pearson Attendance Correlation ($r$).
+   - Statistical aggregator module (`summary_aggregator.py`) supporting automatic materialized view refreshes and direct Power BI dataset export (`powerbi/exports/`).
+   - Exploratory Data Analysis (EDA) Jupyter Notebook (`analytics/notebooks/eda_summary_analytics.ipynb`) featuring statistical distributions, pass rate comparisons, regression plots, and summary tables.
 
 ---
 
@@ -40,14 +40,19 @@ The UniPulse Python ETL pipeline (`etl_pipeline.py`) transforms operational OLTP
 python analytics/src/etl_pipeline.py
 ```
 
-### 2. Run ETL Pipeline with Rebuild (Purge & Re-index)
+### 2. Refresh Summary Aggregation Views & Export Power BI Datasets
 ```powershell
-python analytics/src/etl_pipeline.py --rebuild
+python analytics/src/summary_aggregator.py --refresh --export-powerbi
 ```
 
-### 3. Run Automated Unit & Integration Tests
+### 3. Generate EDA Jupyter Notebook
 ```powershell
-python analytics/src/test_etl_pipeline.py
+python analytics/src/generate_eda_notebook.py
+```
+
+### 4. Run Automated Summary Aggregation Unit Tests
+```powershell
+python -m unittest analytics/src/test_summary_aggregation.py
 ```
 
 ---
@@ -60,3 +65,5 @@ python analytics/src/test_etl_pipeline.py
 | `--rebuild` | Purges target analytics tables prior to load | `False` |
 | `--batch-size` | Batch size for bulk upserts | `5000` |
 | `--log-level` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `INFO` |
+| `--export-powerbi` | Exports clean CSV datasets for Power BI ingestion | `False` |
+
