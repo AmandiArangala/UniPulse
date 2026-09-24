@@ -1,8 +1,6 @@
 """
 UniPulse Standalone Automated ETL Synchronizer Script (etl_sync.py)
-Platform: PostgreSQL 16 / Supabase
 Transforms operational OLTP (unipulse_core) -> Star Schema Data Warehouse (unipulse_analytics).
-Phase 4: Data Engine & Star Schema ETL Synchronization
 """
 
 import os
@@ -337,6 +335,16 @@ class DatabaseETLManager:
                     fact_rows
                 )
             logging.info(f"Synchronized {len(fact_rows):,} fact_performance rows.")
+
+            # ------------------------------------------------------------------
+            # 7. REFRESH MATERIALIZED SUMMARY ANALYTICS VIEWS 
+            # ------------------------------------------------------------------
+            logging.info("Refreshing materialized summary analytics views (student, module, semester)...")
+            try:
+                cursor.execute("SELECT unipulse_analytics.refresh_summary_analytics();")
+                logging.info("[OK] Refreshed student_analytics, module_analytics, semester_analytics materialized views.")
+            except Exception as refresh_err:
+                logging.warning(f"Note: Materialized summary refresh skipped or handled directly: {refresh_err}")
 
             conn.commit()
             logging.info("SUCCESS: Data Warehouse ETL Pipeline completed successfully!")

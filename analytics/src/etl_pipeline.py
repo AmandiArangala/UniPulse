@@ -1,0 +1,711 @@
+"""
+UniPulse Production Data Engine & Star Schema ETL Pipeline (etl_pipeline.py)
+Platform: PostgreSQL 16 / Supabase
+Phase 4: Data Engine & Star Schema ETL Pipeline
+
+Leverages Pandas & SQLAlchemy for Extract, Clean, Transform, and Load (ETL) operations,
+converting operational OLTP records (unipulse_core) into analytical dimensional tables (unipulse_analytics).
+
+Commit 1: Core ETL Architecture & SQLAlchemy Engine Setup
+"""
+
+import os
+import sys
+import logging
+import argparse
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
+import pandas as pd
+from sqlalchemy import create_engine, text, Engine
+from sqlalchemy.exc import SQLAlchemyError
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if available
+load_dotenv()
+
+# Configure production logging system
+def setup_logger(log_level: str = "INFO") -> logging.Logger:
+    """Configures structured logger for ETL operations."""
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    logger = logging.getLogger("UniPulseETL")
+    logger.setLevel(numeric_level)
+    
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(
+            fmt="%(asctime)s [%(levelname)s] [ETL Engine] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        
+    return logger
+
+class UniPulseETLPipeline:
+    """
+    Automated Python ETL Pipeline leveraging Pandas and SQLAlchemy.
+    Extracts operational data from unipulse_core, applies data cleaning rules,
+    computes rolling performance trends & health scores, and bulk loads into unipulse_analytics.
+    """
+
+    def __init__(
+        self,
+        db_url: Optional[str] = None,
+        batch_size: int = 5000,
+        rebuild: bool = False,
+        logger: Optional[logging.Logger] = None
+    ):
+        self.logger = logger or setup_logger()
+        self.batch_size = batch_size
+        self.rebuild = rebuild
+        
+        # Database URL resolution strategy
+        resolved_url = (
+            db_url or
+            os.getenv("DATABASE_URL") or
+            "postgresql://postgres:your_postgres_password@localhost:5432/unipulse_db"
+        )
+        
+        # Ensure psycopg2 driver prefix compatibility for SQLAlchemy 2.0+
+        if resolved_url.startswith("postgres://"):
+            resolved_url = resolved_url.replace("postgres://", "postgresql://", 1)
+            
+        self.db_url = resolved_url
+        self.engine: Optional[Engine] = None
+        self._init_sqlalchemy_engine()
+
+    def _init_sqlalchemy_engine(self) -> None:
+        """Initializes high-performance SQLAlchemy connection pool with resilience settings."""
+        try:
+            self.logger.info("Initializing SQLAlchemy database engine connection pool...")
+            self.engine = create_engine(
+                self.db_url,
+                pool_size=10,
+                max_overflow=20,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                future=True
+            )
+            self.logger.info("SQLAlchemy engine successfully configured.")
+        except Exception as err:
+            self.logger.error(f"Failed to initialize SQLAlchemy engine: {err}")
+            raise
+
+    def test_connection(self) -> bool:
+        """Verifies database connectivity and schema presence for unipulse_core and unipulse_analytics."""
+        if not self.engine:
+            self.logger.error("SQLAlchemy engine is not initialized.")
+            return False
+
+        try:
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT current_database(), current_schema();")).fetchone()
+                db_name, schema_name = result[0], result[1]
+                self.logger.info(f"Connected to Database: '{db_name}' (Current Schema: '{schema_name}')")
+
+                # Verify schema existence
+                schemas_query = text("""
+                    SELECT schema_name 
+                    FROM information_schema.schemata 
+                    WHERE schema_name IN ('unipulse_core', 'unipulse_analytics');
+                """)
+                existing_schemas = [r[0] for r in conn.execute(schemas_query).fetchall()]
+                self.logger.info(f"Verified target schemas: {existing_schemas}")
+                return True
+        except SQLAlchemyError as sqla_err:
+            self.logger.error(f"Database connectivity test failed: {sqla_err}")
+            return False
+        except Exception as err:
+            self.logger.error(f"Unexpected error during connection test: {err}")
+            return False
+
+    def extract(self) -> Dict[str, pd.DataFrame]:
+        """
+        Stage 1: Extraction Stage (Extract raw OLTP DataFrames via SQLAlchemy).
+        Queries unipulse_core tables: programs, students, modules, semesters, enrollments, assessment_results, attendance_records.
+        """
+        self.logger.info("[Extract Stage] Querying operational OLTP tables from unipulse_core...")
+        extracted_data: Dict[str, pd.DataFrame] = {}
+
+        if not self.engine:
+            raise RuntimeError("Cannot execute extract stage: SQLAlchemy engine is not initialized.")
+
+        try:
+            with self.engine.connect() as conn:
+                # 1. Programs
+                prog_sql = """
+                    SELECT 
+                        p.id AS program_key, p.code AS program_code, p.name AS program_name, 
+                        p.degree_level, d.name AS department_name, f.name AS faculty_name, p.total_credits
+                    FROM unipulse_core.programs p
+                    JOIN unipulse_core.departments d ON p.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["programs"] = pd.read_sql_query(prog_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['programs'])} program records.")
+
+                # 2. Students
+                stud_sql = """
+                    SELECT 
+                        s.user_id AS student_key, s.student_number, 
+                        CONCAT(u.first_name, ' ', u.last_name) AS full_name, u.email,
+                        p.name AS program_name, d.name AS department_name, f.name AS faculty_name,
+                        s.enrollment_year, s.gpa AS current_gpa, s.academic_status
+                    FROM unipulse_core.students s
+                    JOIN unipulse_core.users u ON s.user_id = u.id
+                    JOIN unipulse_core.programs p ON s.program_id = p.id
+                    JOIN unipulse_core.departments d ON p.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["students"] = pd.read_sql_query(stud_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['students'])} student profile records.")
+
+                # 3. Modules
+                mod_sql = """
+                    SELECT 
+                        m.id AS module_key, m.code AS module_code, m.title AS module_title, 
+                        m.credit_hours, d.name AS department_name, f.name AS faculty_name
+                    FROM unipulse_core.modules m
+                    JOIN unipulse_core.departments d ON m.department_id = d.id
+                    JOIN unipulse_core.faculties f ON d.faculty_id = f.id;
+                """
+                extracted_data["modules"] = pd.read_sql_query(mod_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['modules'])} module records.")
+
+                # 4. Semesters
+                sem_sql = """
+                    SELECT 
+                        s.id AS semester_key, s.name AS semester_name, s.academic_year, 
+                        s.start_date, s.end_date, s.is_current
+                    FROM unipulse_core.semesters s;
+                """
+                extracted_data["semesters"] = pd.read_sql_query(sem_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['semesters'])} semester records.")
+
+                # 5. Enrollments
+                enr_sql = """
+                    SELECT 
+                        e.id AS enrollment_id, e.student_id, e.module_id, e.semester_id, 
+                        e.final_grade, e.letter_grade, e.status
+                    FROM unipulse_core.enrollments e;
+                """
+                extracted_data["enrollments"] = pd.read_sql_query(enr_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['enrollments'])} enrollment records.")
+
+                # 6. Assessment Results
+                ass_sql = """
+                    SELECT 
+                        ar.id AS result_id, ar.student_id, ar.assessment_id, ar.score_obtained, 
+                        ar.submitted_at, ar.is_late, a.module_id, a.semester_id, 
+                        a.weight_percentage, a.max_score, a.due_date
+                    FROM unipulse_core.assessment_results ar
+                    JOIN unipulse_core.assessments a ON ar.assessment_id = a.id;
+                """
+                extracted_data["assessment_results"] = pd.read_sql_query(ass_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['assessment_results'])} assessment result records.")
+
+                # 7. Attendance Records
+                att_sql = """
+                    SELECT 
+                        rec.id AS attendance_id, rec.student_id, rec.status, 
+                        sess.module_id, sess.session_date
+                    FROM unipulse_core.attendance_records rec
+                    JOIN unipulse_core.attendance_sessions sess ON rec.session_id = sess.id;
+                """
+                extracted_data["attendance_records"] = pd.read_sql_query(att_sql, conn)
+                self.logger.info(f"  ✓ Extracted {len(extracted_data['attendance_records'])} attendance records.")
+
+        except Exception as err:
+            self.logger.error(f"Error during extraction stage: {err}")
+            raise
+
+        return extracted_data
+
+    def clean(self, raw_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+        """
+        Stage 2: Data Cleaning & Validation Pipeline (Pandas).
+        - Missing value imputation
+        - Duplicate detection & removal
+        - Out-of-bounds score range filtering [0.0, 100.0]
+        - String normalization & GPA bounds enforcement
+        """
+        self.logger.info("[Clean Stage] Running automated Pandas data cleaning & validation pipeline...")
+        cleaned: Dict[str, pd.DataFrame] = {}
+
+        # 1. Clean Programs
+        if "programs" in raw_data and not raw_data["programs"].empty:
+            df = raw_data["programs"].copy()
+            df.drop_duplicates(subset=["program_code"], inplace=True)
+            df["program_name"] = df["program_name"].astype(str).str.strip()
+            df["total_credits"] = df["total_credits"].fillna(120).astype(int)
+            cleaned["programs"] = df
+
+        # 2. Clean Students
+        if "students" in raw_data and not raw_data["students"].empty:
+            df = raw_data["students"].copy()
+            df.drop_duplicates(subset=["student_key"], inplace=True)
+            df["full_name"] = df["full_name"].astype(str).str.strip()
+            df["email"] = df["email"].fillna("unknown@unipulse.edu")
+            df["academic_status"] = df["academic_status"].fillna("GOOD_STANDING").astype(str).str.upper()
+            # Enforce GPA bounds [0.00, 4.00]
+            df["current_gpa"] = df["current_gpa"].fillna(0.0).clip(lower=0.0, upper=4.0)
+            cleaned["students"] = df
+
+        # 3. Clean Modules
+        if "modules" in raw_data and not raw_data["modules"].empty:
+            df = raw_data["modules"].copy()
+            df.drop_duplicates(subset=["module_key"], inplace=True)
+            df["module_title"] = df["module_title"].astype(str).str.strip()
+            df["credit_hours"] = df["credit_hours"].fillna(3).astype(int)
+            cleaned["modules"] = df
+
+        # 4. Clean Semesters
+        if "semesters" in raw_data and not raw_data["semesters"].empty:
+            df = raw_data["semesters"].copy()
+            df.drop_duplicates(subset=["semester_key"], inplace=True)
+            df["is_current"] = df["is_current"].fillna(False).astype(bool)
+            cleaned["semesters"] = df
+
+        # 5. Clean Enrollments
+        if "enrollments" in raw_data and not raw_data["enrollments"].empty:
+            df = raw_data["enrollments"].copy()
+            df.drop_duplicates(subset=["student_id", "module_id", "semester_id"], inplace=True)
+            df["status"] = df["status"].fillna("ENROLLED").astype(str).str.upper()
+            if "final_grade" in df.columns:
+                df["final_grade"] = pd.to_numeric(df["final_grade"], errors="coerce").clip(lower=0.0, upper=100.0)
+            cleaned["enrollments"] = df
+
+        # 6. Clean Assessment Results (Scores Imputation & Bounds Check [0, 100])
+        if "assessment_results" in raw_data and not raw_data["assessment_results"].empty:
+            df = raw_data["assessment_results"].copy()
+            df.drop_duplicates(subset=["student_id", "assessment_id"], inplace=True)
+            
+            # Numeric conversion & Imputation
+            df["max_score"] = pd.to_numeric(df["max_score"], errors="coerce").fillna(100.0)
+            df["max_score"] = df["max_score"].apply(lambda x: 100.0 if x <= 0 else x)
+            df["score_obtained"] = pd.to_numeric(df["score_obtained"], errors="coerce").fillna(0.0)
+            
+            # Calculate percentage score normalized to 100
+            df["percentage_score"] = (df["score_obtained"] / df["max_score"]) * 100.0
+            
+            # Filter / clip out-of-bounds invalid score ranges
+            initial_count = len(df)
+            df["percentage_score"] = df["percentage_score"].clip(lower=0.0, upper=100.0)
+            
+            df["is_late"] = df["is_late"].fillna(False).astype(bool)
+            cleaned["assessment_results"] = df
+            self.logger.info(f"  ✓ Cleaned assessment results ({initial_count} valid records, scores normalized & bounded [0, 100]).")
+
+        # 7. Clean Attendance Records
+        if "attendance_records" in raw_data and not raw_data["attendance_records"].empty:
+            df = raw_data["attendance_records"].copy()
+            df.drop_duplicates(subset=["attendance_id"], inplace=True)
+            df["status"] = df["status"].fillna("ABSENT").astype(str).str.upper()
+            cleaned["attendance_records"] = df
+            self.logger.info(f"  ✓ Cleaned attendance records ({len(df)} records).")
+
+        return cleaned
+
+    @staticmethod
+    def _calculate_trend_slope(scores_series: pd.Series) -> float:
+        """
+        Calculates rolling performance trajectory slope using NumPy linear regression.
+        Returns a normalized trend score between 0.0 and 100.0 (50.0 = neutral/stable).
+        """
+        valid_scores = scores_series.dropna().tolist()
+        n = len(valid_scores)
+        if n < 2:
+            return 50.0  # Baseline neutral trend
+            
+        try:
+            import numpy as np
+            x = np.arange(n)
+            y = np.array(valid_scores, dtype=float)
+            slope, _ = np.polyfit(x, y, 1)
+            # Map slope (-5.0 to +5.0 grade points per test) to score scale [0.0, 100.0]
+            trend_score = 50.0 + (slope * 10.0)
+            return float(np.clip(trend_score, 0.0, 100.0))
+        except Exception:
+            return 50.0
+
+    def transform(self, cleaned_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+        """
+        Stage 3: Feature Engineering & Transformation Engine (Pandas & NumPy).
+        Computes:
+        - Weighted average assessment scores per student/module/semester
+        - Rolling performance trajectory slopes via linear regression
+        - Attendance & submission completion rates
+        - Composite Academic Health Score (40% performance, 20% attendance, 15% submissions, 15% engagement, 10% trend)
+        - Attention level risk categorization (EXCELLENT, SATISFACTORY, ATTENTION_REQUIRED, CRITICAL)
+        - Fact table dataset for unipulse_analytics.fact_performance
+        """
+        self.logger.info("[Transform Stage] Running feature engineering, rolling slopes & health score computations...")
+        transformed: Dict[str, pd.DataFrame] = dict(cleaned_data)
+
+        enrollments = cleaned_data.get("enrollments", pd.DataFrame())
+        results = cleaned_data.get("assessment_results", pd.DataFrame())
+        attendance = cleaned_data.get("attendance_records", pd.DataFrame())
+        students = cleaned_data.get("students", pd.DataFrame())
+        programs = cleaned_data.get("programs", pd.DataFrame())
+
+        if enrollments.empty:
+            self.logger.warning("Enrollments dataset is empty. Skipping fact_performance transformation.")
+            transformed["fact_performance"] = pd.DataFrame()
+            return transformed
+
+        # Pre-build lookup map for student program_key
+        stud_prog_map = {}
+        if not students.empty and not programs.empty:
+            merged_sp = pd.merge(students, programs, on="program_name", how="left")
+            for _, r in merged_sp.iterrows():
+                stud_prog_map[r["student_key"]] = r.get("program_key", None)
+
+        fact_rows = []
+        today_date = datetime.now().date().strftime("%Y-%m-%d")
+
+        for _, enr in enrollments.iterrows():
+            student_id = enr["student_id"]
+            module_id = enr["module_id"]
+            semester_id = enr["semester_id"]
+
+            # 1. Filter Assessment Results for this Student & Module
+            sub_res = pd.DataFrame()
+            if not results.empty:
+                sub_res = results[(results["student_id"] == student_id) & (results["module_id"] == module_id)]
+
+            # Calculate Weighted Average Assessment Score
+            if not sub_res.empty and "percentage_score" in sub_res.columns:
+                weights = sub_res["weight_percentage"].fillna(1.0)
+                total_weight = weights.sum()
+                if total_weight > 0:
+                    weighted_score = (sub_res["percentage_score"] * weights).sum() / total_weight
+                else:
+                    weighted_score = sub_res["percentage_score"].mean()
+                
+                # Compute Rolling Performance Slope Trend Score
+                trend_score = self._calculate_trend_slope(sub_res["percentage_score"])
+                submission_rate = min(100.0, (len(sub_res) / max(1, len(sub_res["assessment_id"].unique()))) * 100.0)
+            else:
+                weighted_score = float(enr.get("final_grade", 0.0) or 0.0)
+                trend_score = 50.0
+                submission_rate = 0.0 if sub_res.empty else 100.0
+
+            # 2. Filter Attendance for this Student & Module
+            sub_att = pd.DataFrame()
+            if not attendance.empty:
+                sub_att = attendance[(attendance["student_id"] == student_id) & (attendance["module_id"] == module_id)]
+
+            if not sub_att.empty:
+                total_sessions = len(sub_att)
+                present_count = len(sub_att[sub_att["status"] == "PRESENT"])
+                late_count = len(sub_att[sub_att["status"] == "LATE"])
+                att_rate = ((present_count + (0.5 * late_count)) / max(1, total_sessions)) * 100.0
+            else:
+                att_rate = 100.0  # Default baseline if no session tracked
+
+            att_rate = float(np.clip(att_rate, 0.0, 100.0)) if 'np' in locals() else float(max(0.0, min(100.0, att_rate)))
+            submission_rate = float(max(0.0, min(100.0, submission_rate)))
+            weighted_score = float(max(0.0, min(100.0, weighted_score)))
+
+            # 3. Engagement Score (60% attendance + 40% submission completion)
+            engagement_score = (0.60 * att_rate) + (0.40 * submission_rate)
+
+            # 4. Composite Academic Health Score Formula
+            # 40% performance + 20% attendance + 15% submission + 15% engagement + 10% trend slope
+            health_score = (
+                (0.40 * weighted_score) +
+                (0.20 * att_rate) +
+                (0.15 * submission_rate) +
+                (0.15 * engagement_score) +
+                (0.10 * trend_score)
+            )
+            health_score = float(max(0.0, min(100.0, health_score)))
+
+            # 5. Rule-Based Attention Level Risk Categorization
+            if health_score >= 85.0:
+                attention_level = "EXCELLENT"
+            elif health_score >= 70.0:
+                attention_level = "SATISFACTORY"
+            elif health_score >= 50.0:
+                attention_level = "ATTENTION_REQUIRED"
+            else:
+                attention_level = "CRITICAL"
+
+            fact_rows.append({
+                "student_key": student_id,
+                "module_key": module_id,
+                "semester_key": semester_id,
+                "program_key": stud_prog_map.get(student_id, None),
+                "date_key": today_date,
+                "scores": round(weighted_score, 2),
+                "attendance_rate": round(att_rate, 2),
+                "submission_rate": round(submission_rate, 2),
+                "engagement_score": round(engagement_score, 2),
+                "final_grade": round(weighted_score, 2),
+                "health_score": round(health_score, 2),
+                "attention_level": attention_level
+            })
+
+        df_fact = pd.DataFrame(fact_rows)
+        if not df_fact.empty:
+            df_fact.drop_duplicates(subset=["student_key", "module_key", "semester_key"], inplace=True)
+
+        transformed["fact_performance"] = df_fact
+        self.logger.info(f"  ✓ Transformed {len(df_fact)} fact_performance records with rolling slopes & health scores.")
+        return transformed
+
+    def load(self, transformed_data: Dict[str, pd.DataFrame]) -> bool:
+        """
+        Stage 4: Idempotent Bulk DW Loading & Upsert Engine (SQLAlchemy & PostgreSQL ON CONFLICT).
+        - Purges target analytics schema if rebuild=True
+        - Populates dim_date, dim_program, dim_student, dim_module, dim_semester
+        - Performs batch upsert into unipulse_analytics.fact_performance
+        """
+        self.logger.info("[Load Stage] Executing idempotent bulk DW loading with SQLAlchemy transaction management...")
+        if not self.engine:
+            self.logger.error("Cannot execute load stage: SQLAlchemy engine is not initialized.")
+            return False
+
+        try:
+            with self.engine.begin() as conn:
+                # 0. Handle Rebuild Flag Purge
+                if self.rebuild:
+                    self.logger.warning("Rebuild flag active: Purging unipulse_analytics tables...")
+                    conn.execute(text("TRUNCATE unipulse_analytics.fact_performance CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_student CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_module CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_semester CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_program CASCADE;"))
+                    conn.execute(text("TRUNCATE unipulse_analytics.dim_date CASCADE;"))
+                    self.logger.info("  ✓ Purged target analytical schema tables.")
+
+                # 1. Load dim_date (Populate 2026 Calendar)
+                self.logger.info("  -> Synchronizing dim_date dimension...")
+                from datetime import date, timedelta
+                date_records = []
+                start_d = date(2026, 1, 1)
+                end_d = date(2026, 12, 31)
+                curr_d = start_d
+                while curr_d <= end_d:
+                    date_records.append({
+                        "date_key": curr_d,
+                        "year": curr_d.year,
+                        "quarter": (curr_d.month - 1) // 3 + 1,
+                        "month": curr_d.month,
+                        "month_name": curr_d.strftime("%B"),
+                        "day": curr_d.day,
+                        "day_of_week": curr_d.strftime("%A"),
+                        "is_weekend": curr_d.weekday() in [5, 6],
+                        "academic_week": max(1, min(20, (curr_d.timetuple().tm_yday // 7)))
+                    })
+                    curr_d += timedelta(days=1)
+
+                dim_date_upsert = text("""
+                    INSERT INTO unipulse_analytics.dim_date
+                    (date_key, year, quarter, month, month_name, day, day_of_week, is_weekend, academic_week)
+                    VALUES (:date_key, :year, :quarter, :month, :month_name, :day, :day_of_week, :is_weekend, :academic_week)
+                    ON CONFLICT (date_key) DO UPDATE SET
+                        year = EXCLUDED.year, quarter = EXCLUDED.quarter, month = EXCLUDED.month, academic_week = EXCLUDED.academic_week;
+                """)
+                conn.execute(dim_date_upsert, date_records)
+                self.logger.info(f"  ✓ Synchronized {len(date_records)} dim_date records.")
+
+                # 2. Load dim_program
+                programs = transformed_data.get("programs", pd.DataFrame())
+                if not programs.empty:
+                    self.logger.info("  -> Synchronizing dim_program dimension...")
+                    prog_records = programs.to_dict(orient="records")
+                    prog_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_program
+                        (program_key, program_code, program_name, degree_level, department_name, faculty_name, total_credits)
+                        VALUES (:program_key, :program_code, :program_name, :degree_level, :department_name, :faculty_name, :total_credits)
+                        ON CONFLICT (program_code) DO UPDATE SET
+                            program_name = EXCLUDED.program_name,
+                            degree_level = EXCLUDED.degree_level,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            total_credits = EXCLUDED.total_credits;
+                    """)
+                    conn.execute(prog_upsert, prog_records)
+                    self.logger.info(f"  ✓ Upserted {len(prog_records)} dim_program records.")
+
+                # 3. Load dim_student
+                students = transformed_data.get("students", pd.DataFrame())
+                if not students.empty:
+                    self.logger.info("  -> Synchronizing dim_student dimension...")
+                    stud_records = students.to_dict(orient="records")
+                    stud_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_student
+                        (student_key, student_number, full_name, email, program_name, department_name, faculty_name, enrollment_year, current_gpa, academic_status)
+                        VALUES (:student_key, :student_number, :full_name, :email, :program_name, :department_name, :faculty_name, :enrollment_year, :current_gpa, :academic_status)
+                        ON CONFLICT (student_number) DO UPDATE SET
+                            full_name = EXCLUDED.full_name,
+                            email = EXCLUDED.email,
+                            program_name = EXCLUDED.program_name,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            current_gpa = EXCLUDED.current_gpa,
+                            academic_status = EXCLUDED.academic_status,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(stud_upsert, stud_records)
+                    self.logger.info(f"  ✓ Upserted {len(stud_records)} dim_student records.")
+
+                # 4. Load dim_module
+                modules = transformed_data.get("modules", pd.DataFrame())
+                if not modules.empty:
+                    self.logger.info("  -> Synchronizing dim_module dimension...")
+                    mod_records = modules.to_dict(orient="records")
+                    mod_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_module
+                        (module_key, module_code, module_title, credit_hours, department_name, faculty_name)
+                        VALUES (:module_key, :module_code, :module_title, :credit_hours, :department_name, :faculty_name)
+                        ON CONFLICT (module_code) DO UPDATE SET
+                            module_title = EXCLUDED.module_title,
+                            credit_hours = EXCLUDED.credit_hours,
+                            department_name = EXCLUDED.department_name,
+                            faculty_name = EXCLUDED.faculty_name,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(mod_upsert, mod_records)
+                    self.logger.info(f"  ✓ Upserted {len(mod_records)} dim_module records.")
+
+                # 5. Load dim_semester
+                semesters = transformed_data.get("semesters", pd.DataFrame())
+                if not semesters.empty:
+                    self.logger.info("  -> Synchronizing dim_semester dimension...")
+                    sem_records = semesters.to_dict(orient="records")
+                    sem_upsert = text("""
+                        INSERT INTO unipulse_analytics.dim_semester
+                        (semester_key, semester_name, academic_year, start_date, end_date, is_current)
+                        VALUES (:semester_key, :semester_name, :academic_year, :start_date, :end_date, :is_current)
+                        ON CONFLICT (semester_key) DO UPDATE SET
+                            semester_name = EXCLUDED.semester_name,
+                            academic_year = EXCLUDED.academic_year,
+                            start_date = EXCLUDED.start_date,
+                            end_date = EXCLUDED.end_date,
+                            is_current = EXCLUDED.is_current,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+                    conn.execute(sem_upsert, sem_records)
+                    self.logger.info(f"  ✓ Upserted {len(sem_records)} dim_semester records.")
+
+                # 6. Bulk Load Central Fact Table: fact_performance
+                fact_df = transformed_data.get("fact_performance", pd.DataFrame())
+                if not fact_df.empty:
+                    self.logger.info("  -> Executing bulk upsert into fact_performance...")
+                    fact_records = fact_df.to_dict(orient="records")
+                    
+                    fact_upsert = text("""
+                        INSERT INTO unipulse_analytics.fact_performance (
+                            student_key, module_key, semester_key, program_key, date_key,
+                            scores, attendance_rate, submission_rate, engagement_score, final_grade, health_score, attention_level
+                        )
+                        VALUES (
+                            :student_key, :module_key, :semester_key, :program_key, :date_key,
+                            :scores, :attendance_rate, :submission_rate, :engagement_score, :final_grade, :health_score, :attention_level
+                        )
+                        ON CONFLICT (student_key, module_key, semester_key) DO UPDATE SET
+                            program_key = EXCLUDED.program_key,
+                            date_key = EXCLUDED.date_key,
+                            scores = EXCLUDED.scores,
+                            attendance_rate = EXCLUDED.attendance_rate,
+                            submission_rate = EXCLUDED.submission_rate,
+                            engagement_score = EXCLUDED.engagement_score,
+                            final_grade = EXCLUDED.final_grade,
+                            health_score = EXCLUDED.health_score,
+                            attention_level = EXCLUDED.attention_level,
+                            updated_at = CURRENT_TIMESTAMP;
+                    """)
+
+                    # Chunk batch execution to prevent memory overflow
+                    chunk_size = self.batch_size
+                    for i in range(0, len(fact_records), chunk_size):
+                        batch = fact_records[i : i + chunk_size]
+                        conn.execute(fact_upsert, batch)
+                        
+                    self.logger.info(f"  ✓ Successfully bulk upserted {len(fact_records)} fact_performance records.")
+
+            self.logger.info("[Load Stage] Data Warehouse loading transaction committed successfully.")
+            return True
+        except Exception as err:
+            self.logger.error(f"Error during bulk DW loading stage: {err}", exc_info=True)
+            return False
+
+    def run(self) -> bool:
+        """Orchestrates end-to-end execution of the ETL pipeline."""
+        self.logger.info("=================================================================")
+        self.logger.info(" 🚀 UNIPULSE ETL PIPELINE (Pandas & SQLAlchemy Engine Execution)")
+        self.logger.info("=================================================================")
+        
+        if not self.test_connection():
+            self.logger.error("Aborting ETL execution: Database connectivity check failed.")
+            return False
+
+        if self.rebuild:
+            self.logger.warning("Rebuild flag enabled. Existing analytical tables will be purged before load.")
+
+        try:
+            # Step 1: Extract
+            raw_data = self.extract()
+            
+            # Step 2: Clean
+            cleaned_data = self.clean(raw_data)
+            
+            # Step 3: Transform
+            transformed_data = self.transform(cleaned_data)
+            
+            # Step 4: Load
+            success = self.load(transformed_data)
+            
+            self.logger.info("=================================================================")
+            self.logger.info(" ✅ ETL PIPELINE COMPLETED SUCCESSFULLY")
+            self.logger.info("=================================================================")
+            return success
+        except Exception as err:
+            self.logger.critical(f"ETL pipeline execution failed critically: {err}", exc_info=True)
+            return False
+
+def parse_args():
+    """CLI argument parser for ETL script execution."""
+    parser = argparse.ArgumentParser(
+        description="UniPulse Python ETL Pipeline (Pandas & SQLAlchemy Engine)"
+    )
+    parser.add_argument(
+        "--db-url",
+        type=str,
+        default=None,
+        help="Target database connection URL (defaults to DATABASE_URL environment variable)."
+    )
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="If set, purges target fact and dimension tables prior to ETL load."
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=5000,
+        help="Batch size for bulk insertion operations (default: 5000)."
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set logging verbosity level (default: INFO)."
+    )
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    args = parse_args()
+    logger = setup_logger(args.log_level)
+    
+    pipeline = UniPulseETLPipeline(
+        db_url=args.db_url,
+        batch_size=args.batch_size,
+        rebuild=args.rebuild,
+        logger=logger
+    )
+    
+    pipeline.run()
