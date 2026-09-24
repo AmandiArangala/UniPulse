@@ -22,6 +22,8 @@ import {
   FolderGit2,
   User,
   LogOut,
+  Target,
+  Database,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { UserRole } from '@/types/auth';
@@ -37,11 +39,12 @@ interface NavItem {
 const navItemsByRole: Record<UserRole, NavItem[]> = {
   STUDENT: [
     { label: 'Academic Pulse', href: '/', icon: LayoutDashboard },
+    { label: 'Academic Twin', href: '/student/twin', icon: Activity, badge: 'Twin' },
+    { label: 'What-If Simulator', href: '/student/simulator', icon: Sliders, badge: 'Tool' },
+    { label: 'GPA Goal Planner', href: '/student/gpa-planner', icon: Target, badge: 'Planner' },
     { label: 'Enrolled Modules', href: '/student/modules', icon: BookOpen },
     { label: 'Attendance Tracker', href: '/student/attendance', icon: Calendar },
     { label: 'Unofficial Transcript', href: '/student/transcript', icon: GraduationCap },
-    { label: 'What-If Simulator', href: '/student/simulator', icon: Sliders, badge: 'Tool' },
-    { label: 'Academic Twin', href: '/student/twin', icon: Activity },
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   LECTURER: [
@@ -60,14 +63,13 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
   ADMIN: [
-    { label: 'Institutional Analytics', href: '/', icon: LayoutDashboard },
+    { label: 'Institutional Dashboard', href: '/', icon: LayoutDashboard },
+    { label: 'OLAP Data Warehouse', href: '/admin/analytics', icon: Database, badge: 'OLAP' },
     { label: 'User Directory & Roles', href: '/admin/users', icon: Users, badge: 'System' },
     { label: 'Academic Catalog', href: '/admin/catalog', icon: BookOpenCheck, badge: 'Manager' },
     { label: 'Data Audit & Integrity', href: '/admin/data-audit', icon: ShieldAlert, badge: 'Audit' },
     { label: 'Security & Audit Logs', href: '/admin/audit-logs', icon: ShieldCheck },
     { label: 'System Health & Status', href: '/admin/system-health', icon: Activity, badge: 'Live' },
-    { label: 'Cohort Comparison', href: '/admin/cohorts', icon: GraduationCap },
-    { label: 'Difficulty Index', href: '/admin/modules', icon: FolderGit2 },
     { label: 'Profile & Security', href: '/profile', icon: User },
   ],
 };

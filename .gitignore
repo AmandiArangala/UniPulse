@@ -63,3 +63,7 @@ database/init/02-synthetic-seed.sql
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Power BI generated export files
+powerbi/exports/*.csv
+
