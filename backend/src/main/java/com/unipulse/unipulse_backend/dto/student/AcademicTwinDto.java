@@ -33,6 +33,7 @@ public class AcademicTwinDto {
     private String statusTier; // EXCELLENT, HEALTHY, ATTENTION, CRITICAL
 
     private HealthScoreBreakdownDto healthBreakdown;
+    private AttentionIndicatorResultDto attentionIndicator;
     private List<String> recommendations;
     private OffsetDateTime lastUpdated;
 }

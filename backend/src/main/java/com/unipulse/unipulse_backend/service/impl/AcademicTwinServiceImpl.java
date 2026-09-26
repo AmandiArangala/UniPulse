@@ -1,11 +1,11 @@
 package com.unipulse.unipulse_backend.service.impl;
 
-import com.unipulse.unipulse_backend.dto.student.AcademicTwinDto;
-import com.unipulse.unipulse_backend.dto.student.HealthScoreBreakdownDto;
+import com.unipulse.unipulse_backend.dto.student.*;
 import com.unipulse.unipulse_backend.exception.ResourceNotFoundException;
 import com.unipulse.unipulse_backend.model.entity.Student;
 import com.unipulse.unipulse_backend.repository.StudentRepository;
 import com.unipulse.unipulse_backend.service.AcademicTwinService;
+import com.unipulse.unipulse_backend.service.AttentionIndicatorEngineService;
 import com.unipulse.unipulse_backend.service.GpaCalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,6 +24,7 @@ public class AcademicTwinServiceImpl implements AcademicTwinService {
 
     private final StudentRepository studentRepository;
     private final GpaCalculationService gpaCalculationService;
+    private final AttentionIndicatorEngineService attentionIndicatorEngineService;
 
     // Multi-factor Health Score Weights
     private static final BigDecimal WEIGHT_PERF = new BigDecimal("0.40");
@@ -133,6 +134,17 @@ public class AcademicTwinServiceImpl implements AcademicTwinService {
 
         List<String> recommendations = generateRecommendations(statusTier, attendanceRate, submissionRate, engagementScore, assessmentAvg);
 
+        AttentionIndicatorResultDto attentionIndicator = attentionIndicatorEngineService.evaluateCustomAttention(
+                AttentionSimulationRequestDto.builder()
+                        .studentId(student.getUserId())
+                        .attendanceRate(attendanceRate)
+                        .averageMark(assessmentAvg)
+                        .missedTestsCount(0)
+                        .trendSlope(trendSlope)
+                        .engagementScore(engagementScore)
+                        .build()
+        );
+
         String studentName = (student.getUser() != null) ? student.getUser().getFirstName() + " " + student.getUser().getLastName() : "Alex Mercer";
         String programName = (student.getProgram() != null) ? student.getProgram().getName() : "BSc Computer Science & Data Analytics";
         Integer totalCreditsReq = (student.getProgram() != null && student.getProgram().getTotalCredits() != null) ? student.getProgram().getTotalCredits() : 120;
@@ -154,6 +166,7 @@ public class AcademicTwinServiceImpl implements AcademicTwinService {
                 .healthScore(totalHealthScore)
                 .statusTier(statusTier)
                 .healthBreakdown(breakdown)
+                .attentionIndicator(attentionIndicator)
                 .recommendations(recommendations)
                 .lastUpdated(OffsetDateTime.now())
                 .build();
