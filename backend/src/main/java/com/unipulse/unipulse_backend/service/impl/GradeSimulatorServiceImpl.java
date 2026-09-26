@@ -143,29 +143,53 @@ public class GradeSimulatorServiceImpl implements GradeSimulatorService {
             String moduleCode, BigDecimal currentWeightedTotal, BigDecimal remainingWeight, BigDecimal targetMark) {
         List<ExamScenarioRowDto> scenarios = new ArrayList<>();
         BigDecimal[] sampleExamScores = new BigDecimal[]{
-                new BigDecimal("40.00"), new BigDecimal("50.00"), new BigDecimal("60.00"),
-                new BigDecimal("70.00"), new BigDecimal("80.00"), new BigDecimal("90.00"),
-                new BigDecimal("100.00")
+                new BigDecimal("0.00"), new BigDecimal("30.00"), new BigDecimal("40.00"),
+                new BigDecimal("50.00"), new BigDecimal("60.00"), new BigDecimal("70.00"),
+                new BigDecimal("80.00"), new BigDecimal("90.00"), new BigDecimal("100.00")
         };
 
         BigDecimal remainingFraction = remainingWeight.divide(HUNDRED, 6, RoundingMode.HALF_UP);
+        BigDecimal bestPossibleMark = currentWeightedTotal.add(remainingWeight).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal worstPossibleMark = currentWeightedTotal.setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal minPassMark = new BigDecimal("45.00");
+        BigDecimal minFirstClassMark = new BigDecimal("75.00");
+
+        BigDecimal minimumScoreToPass = calculateMinimumRequiredExamScore(currentWeightedTotal, remainingWeight, minPassMark);
+        BigDecimal minimumScoreForTarget = calculateMinimumRequiredExamScore(currentWeightedTotal, remainingWeight, targetMark);
+        BigDecimal minimumScoreForFirstClass = calculateMinimumRequiredExamScore(currentWeightedTotal, remainingWeight, minFirstClassMark);
 
         for (BigDecimal examScore : sampleExamScores) {
             BigDecimal examContribution = examScore.multiply(remainingFraction).setScale(2, RoundingMode.HALF_UP);
             BigDecimal predictedFinalMark = currentWeightedTotal.add(examContribution).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal deltaToTarget = predictedFinalMark.subtract(targetMark).setScale(2, RoundingMode.HALF_UP);
+            
             String letter = GradeMappingUtil.getLetterGrade(predictedFinalMark);
             BigDecimal gpaPoints = GradeMappingUtil.getGradePoint(letter);
             boolean meetsTarget = predictedFinalMark.compareTo(targetMark) >= 0;
 
             String statusLabel;
-            if (predictedFinalMark.compareTo(new BigDecimal("75.00")) >= 0) {
-                statusLabel = "First Class / A Grade";
-            } else if (predictedFinalMark.compareTo(new BigDecimal("65.00")) >= 0) {
-                statusLabel = "Second Upper / B+ Grade";
-            } else if (predictedFinalMark.compareTo(new BigDecimal("45.00")) >= 0) {
-                statusLabel = "Pass Grade";
+            if (meetsTarget && deltaToTarget.compareTo(BigDecimal.ZERO) == 0) {
+                statusLabel = "Exact Target Met";
+            } else if (meetsTarget) {
+                statusLabel = "Target Exceeded (+ " + deltaToTarget.toPlainString() + "%)";
+            } else if (predictedFinalMark.compareTo(minPassMark) >= 0) {
+                statusLabel = "Pass Threshold (Gap: " + deltaToTarget.toPlainString() + "%)";
             } else {
-                statusLabel = "Fail Risk";
+                statusLabel = "At Risk / Fail";
+            }
+
+            String classification;
+            if (predictedFinalMark.compareTo(new BigDecimal("75.00")) >= 0) {
+                classification = "First Class Honours / A Grade (" + (gpaPoints != null ? gpaPoints : "4.0") + ")";
+            } else if (predictedFinalMark.compareTo(new BigDecimal("65.00")) >= 0) {
+                classification = "Upper Second (2:1) / B+ Grade (" + (gpaPoints != null ? gpaPoints : "3.3") + ")";
+            } else if (predictedFinalMark.compareTo(new BigDecimal("55.00")) >= 0) {
+                classification = "Lower Second (2:2) / B- Grade (" + (gpaPoints != null ? gpaPoints : "2.7") + ")";
+            } else if (predictedFinalMark.compareTo(minPassMark) >= 0) {
+                classification = "General Pass / C Grade (" + (gpaPoints != null ? gpaPoints : "2.0") + ")";
+            } else {
+                classification = "Failing Grade (0.0)";
             }
 
             scenarios.add(ExamScenarioRowDto.builder()
@@ -173,8 +197,10 @@ public class GradeSimulatorServiceImpl implements GradeSimulatorService {
                     .predictedFinalMark(predictedFinalMark)
                     .predictedLetter(letter)
                     .predictedGpaPoints(gpaPoints)
+                    .deltaToTarget(deltaToTarget)
                     .meetsTarget(meetsTarget)
                     .statusLabel(statusLabel)
+                    .gradeClassification(classification)
                     .build());
         }
 
@@ -183,9 +209,28 @@ public class GradeSimulatorServiceImpl implements GradeSimulatorService {
                 .currentWeightedTotal(currentWeightedTotal)
                 .remainingWeight(remainingWeight)
                 .targetMark(targetMark)
+                .bestPossibleMark(bestPossibleMark)
+                .worstPossibleMark(worstPossibleMark)
+                .minimumScoreToPass(minimumScoreToPass)
+                .minimumScoreForTarget(minimumScoreForTarget)
+                .minimumScoreForFirstClass(minimumScoreForFirstClass)
                 .scenarios(scenarios)
                 .build();
     }
+
+    private BigDecimal calculateMinimumRequiredExamScore(BigDecimal currentTotal, BigDecimal remainingWeight, BigDecimal target) {
+        if (currentTotal.compareTo(target) >= 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        if (remainingWeight.compareTo(BigDecimal.ZERO) <= 0) {
+            return new BigDecimal("100.01"); // Unachievable
+        }
+        BigDecimal gap = target.subtract(currentTotal);
+        BigDecimal fraction = remainingWeight.divide(HUNDRED, 6, RoundingMode.HALF_UP);
+        BigDecimal required = gap.divide(fraction, 2, RoundingMode.HALF_UP);
+        return required.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : required;
+    }
+
 
     private BigDecimal getTargetScoreFromLetter(String letter) {
         if (letter == null) return new BigDecimal("75.00");
