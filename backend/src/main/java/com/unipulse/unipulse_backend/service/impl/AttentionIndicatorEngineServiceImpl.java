@@ -222,16 +222,12 @@ public class AttentionIndicatorEngineServiceImpl implements AttentionIndicatorEn
                 .map(AttentionTriggerDetailDto::getRuleName)
                 .collect(Collectors.toList());
 
-        String summaryDiagnostic = triggeredRuleNames.isEmpty()
-                .describeConstable()
-                .map(s -> "Student is meeting all academic expectations with low attention required.")
-                .orElse(null);
-
+        String summaryDiagnostic;
         if (triggeredRuleNames.isEmpty()) {
             summaryDiagnostic = "Student demonstrates strong performance with 0 triggered risk factors (Score: " + totalAttentionPoints + "/100).";
         } else {
             summaryDiagnostic = "Attention score calculated at " + totalAttentionPoints + "/100 (" + tier.getDisplayName() + ") due to "
-                    + triggeredRuleNames.size() + " triggered trigger condition(s): " + String.join(", ", triggeredRuleNames) + ".";
+                    + triggeredRuleNames.size() + " triggered condition(s): " + String.join(", ", triggeredRuleNames) + ".";
         }
 
         String advisorNote = generateAdvisorNote(tier, totalAttentionPoints, triggerDetails);
