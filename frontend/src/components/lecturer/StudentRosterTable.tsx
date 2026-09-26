@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { EnrolledStudentRosterItem } from '@/types/lecturer';
 import { RiskLevel } from '@/types/auth';
+import { AttentionBadge } from '../ui/AttentionBadge';
 
 interface StudentRosterTableProps {
   roster: EnrolledStudentRosterItem[];
@@ -239,8 +240,21 @@ export function StudentRosterTable({ roster, moduleCode, onFlagStudent }: Studen
                     </span>
                   </td>
 
-                  {/* Risk Badge */}
-                  <td className="py-3.5 px-4">{getRiskBadge(student.riskLevel)}</td>
+                  {/* Risk Badge / Attention Indicator */}
+                  <td className="py-3.5 px-4">
+                    <AttentionBadge
+                      categoryTier={
+                        student.riskLevel === 'CRITICAL' || student.riskLevel === 'HIGH'
+                          ? 'HIGH_ATTENTION'
+                          : student.riskLevel === 'MEDIUM'
+                          ? 'MEDIUM_ATTENTION'
+                          : 'LOW_ATTENTION'
+                      }
+                      score={student.riskLevel === 'CRITICAL' ? 85 : student.riskLevel === 'HIGH' ? 65 : student.riskLevel === 'MEDIUM' ? 35 : 10}
+                      showScore={true}
+                      size="sm"
+                    />
+                  </td>
 
                   {/* Actions */}
                   <td className="py-3.5 px-4 text-right">

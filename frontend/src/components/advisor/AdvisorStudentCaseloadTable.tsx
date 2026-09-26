@@ -16,6 +16,7 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
+import { AttentionBadge } from '../ui/AttentionBadge';
 import { AssignedStudent, AcademicStatus, RiskLevel } from '@/types/advisor';
 
 interface AdvisorStudentCaseloadTableProps {
@@ -272,8 +273,33 @@ export function AdvisorStudentCaseloadTable({
                   {/* Academic Status */}
                   <td className="py-3.5 px-4">{getAcademicStatusBadge(student.academicStatus)}</td>
 
-                  {/* Risk Level */}
-                  <td className="py-3.5 px-4 text-center">{getRiskLevelBadge(student.riskLevel)}</td>
+                  {/* Risk Level & Attention Indicator */}
+                  <td className="py-3.5 px-4 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <AttentionBadge
+                        categoryTier={
+                          student.riskLevel === 'CRITICAL' || student.riskLevel === 'HIGH'
+                            ? 'HIGH_ATTENTION'
+                            : student.riskLevel === 'MEDIUM'
+                            ? 'MEDIUM_ATTENTION'
+                            : 'LOW_ATTENTION'
+                        }
+                        score={
+                          student.riskLevel === 'CRITICAL'
+                            ? 85
+                            : student.riskLevel === 'HIGH'
+                            ? 65
+                            : student.riskLevel === 'MEDIUM'
+                            ? 35
+                            : 10
+                        }
+                        showScore={true}
+                        size="sm"
+                        interactive={true}
+                        onClick={() => onSelectStudent(student)}
+                      />
+                    </div>
+                  </td>
 
                   {/* Attendance Rate */}
                   <td className="py-3.5 px-4 text-center">
