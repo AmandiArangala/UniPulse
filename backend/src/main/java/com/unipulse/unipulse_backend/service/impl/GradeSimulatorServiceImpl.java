@@ -136,8 +136,165 @@ public class GradeSimulatorServiceImpl implements GradeSimulatorService {
 
     @Override
     public TargetGpaGoalResultDto calculateGpaGoalPlan(TargetGpaGoalRequestDto request) {
-        return null;
+        if (request == null) {
+            throw new IllegalArgumentException("Target GPA goal request cannot be null");
+        }
+
+        BigDecimal currentCgpa = request.getCurrentCgpa() != null ? request.getCurrentCgpa() : new BigDecimal("3.24");
+        Integer earnedCredits = request.getEarnedCredits() != null ? request.getEarnedCredits() : 64;
+        Integer totalDegreeCredits = request.getTotalDegreeCredits() != null ? request.getTotalDegreeCredits() : 120;
+        BigDecimal targetCgpa = request.getTargetCgpa() != null ? request.getTargetCgpa() : new BigDecimal("3.50");
+        Integer plannedSemestersRemaining = request.getPlannedSemestersRemaining() != null ? request.getPlannedSemestersRemaining() : 4;
+
+        currentCgpa = currentCgpa.setScale(2, RoundingMode.HALF_UP);
+        targetCgpa = targetCgpa.setScale(2, RoundingMode.HALF_UP);
+
+        int remainingCredits = Math.max(0, totalDegreeCredits - earnedCredits);
+
+        BigDecimal currentQualityPoints = currentCgpa.multiply(new BigDecimal(earnedCredits)).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal targetQualityPoints = targetCgpa.multiply(new BigDecimal(totalDegreeCredits)).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal requiredRemainingPoints = targetQualityPoints.subtract(currentQualityPoints);
+
+        // Max possible CGPA if 4.00 scored on all remaining credits
+        BigDecimal maxQualityPoints = currentQualityPoints.add(new BigDecimal("4.00").multiply(new BigDecimal(remainingCredits)));
+        BigDecimal maxPossibleCgpa = totalDegreeCredits > 0
+                ? maxQualityPoints.divide(new BigDecimal(totalDegreeCredits), 2, RoundingMode.HALF_UP)
+                : currentCgpa;
+
+        BigDecimal requiredRemainingGpa;
+        boolean isFeasible;
+        String feasibilityStatus;
+        String statusSummary;
+
+        if (remainingCredits == 0) {
+            requiredRemainingGpa = currentCgpa;
+            if (currentCgpa.compareTo(targetCgpa) >= 0) {
+                isFeasible = true;
+                feasibilityStatus = "ACHIEVABLE";
+                statusSummary = "Target degree classification already achieved! All degree credits completed.";
+            } else {
+                isFeasible = false;
+                feasibilityStatus = "IMPOSSIBLE";
+                statusSummary = "All degree credits have been completed. Target CGPA cannot be modified.";
+            }
+        } else {
+            requiredRemainingGpa = requiredRemainingPoints.divide(new BigDecimal(remainingCredits), 2, RoundingMode.HALF_UP);
+
+            if (requiredRemainingGpa.compareTo(BigDecimal.ZERO) <= 0) {
+                requiredRemainingGpa = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+                isFeasible = true;
+                feasibilityStatus = "ACHIEVABLE";
+                statusSummary = String.format("Target CGPA %s is already secured based on earned quality points!", targetCgpa.toPlainString());
+            } else if (requiredRemainingGpa.compareTo(new BigDecimal("3.30")) <= 0) {
+                isFeasible = true;
+                feasibilityStatus = "EASY";
+                statusSummary = String.format("Target CGPA %s is highly achievable with standard effort (Required remaining GPA: %s).",
+                        targetCgpa.toPlainString(), requiredRemainingGpa.toPlainString());
+            } else if (requiredRemainingGpa.compareTo(new BigDecimal("3.70")) <= 0) {
+                isFeasible = true;
+                feasibilityStatus = "MODERATE";
+                statusSummary = String.format("Target CGPA %s is moderately challenging, requiring consistent B+ / A- performance (Required remaining GPA: %s).",
+                        targetCgpa.toPlainString(), requiredRemainingGpa.toPlainString());
+            } else if (requiredRemainingGpa.compareTo(new BigDecimal("4.00")) <= 0) {
+                isFeasible = true;
+                feasibilityStatus = "STRETCH";
+                statusSummary = String.format("Target CGPA %s is a stretch goal, requiring near-perfect Distinction / A grade performance (Required remaining GPA: %s).",
+                        targetCgpa.toPlainString(), requiredRemainingGpa.toPlainString());
+            } else {
+                isFeasible = false;
+                feasibilityStatus = "UNREALISTIC";
+                statusSummary = String.format("Target CGPA %s is mathematically unachievable (Requires %s GPA across remaining %d credits). Maximum possible CGPA is %s.",
+                        targetCgpa.toPlainString(), requiredRemainingGpa.toPlainString(), remainingCredits, maxPossibleCgpa.toPlainString());
+            }
+        }
+
+        String currentHonours = determineHonoursClassification(currentCgpa);
+        String targetHonours = determineHonoursClassification(targetCgpa);
+
+        List<GradeCombinationStrategyDto> strategies = generateRecommendedStrategies(
+                requiredRemainingGpa, remainingCredits, plannedSemestersRemaining, maxPossibleCgpa, targetHonours);
+
+        return TargetGpaGoalResultDto.builder()
+                .currentCgpa(currentCgpa)
+                .targetCgpa(targetCgpa)
+                .earnedCredits(earnedCredits)
+                .totalDegreeCredits(totalDegreeCredits)
+                .remainingCredits(remainingCredits)
+                .currentHonoursClassification(currentHonours)
+                .targetHonoursClassification(targetHonours)
+                .requiredRemainingGpa(requiredRemainingGpa)
+                .maxPossibleCgpa(maxPossibleCgpa)
+                .isFeasible(isFeasible)
+                .feasibilityStatus(feasibilityStatus)
+                .statusSummary(statusSummary)
+                .formulaApplied("Required Remaining GPA = (Target CGPA * Total Credits - Current CGPA * Earned Credits) / Remaining Credits")
+                .recommendedStrategies(strategies)
+                .build();
     }
+
+    private String determineHonoursClassification(BigDecimal cgpa) {
+        if (cgpa == null) return "General Pass Degree";
+        if (cgpa.compareTo(new BigDecimal("3.70")) >= 0) {
+            return "First Class Honours / Distinction (GPA ≥ 3.70)";
+        } else if (cgpa.compareTo(new BigDecimal("3.30")) >= 0) {
+            return "Second Class Upper (2:1) (GPA ≥ 3.30)";
+        } else if (cgpa.compareTo(new BigDecimal("2.70")) >= 0) {
+            return "Second Class Lower (2:2) (GPA ≥ 2.70)";
+        } else if (cgpa.compareTo(new BigDecimal("2.00")) >= 0) {
+            return "General Pass Degree (GPA ≥ 2.00)";
+        } else {
+            return "Below Graduation Threshold (GPA < 2.00)";
+        }
+    }
+
+    private List<GradeCombinationStrategyDto> generateRecommendedStrategies(
+            BigDecimal requiredGpa, int remainingCredits, int remainingSemesters, BigDecimal maxPossibleCgpa, String targetHonours) {
+        List<GradeCombinationStrategyDto> list = new ArrayList<>();
+
+        int creditsPerSem = remainingSemesters > 0 ? Math.max(1, remainingCredits / remainingSemesters) : remainingCredits;
+
+        // Strategy 1: Minimum Target Cadence
+        String mix1;
+        if (requiredGpa.compareTo(new BigDecimal("3.70")) >= 0) {
+            mix1 = "Requires ~80% Grade A (4.0) and ~20% Grade A- (3.7) across remaining " + creditsPerSem + " credits/semester.";
+        } else if (requiredGpa.compareTo(new BigDecimal("3.30")) >= 0) {
+            mix1 = "Requires ~50% Grade A (4.0) and ~50% Grade B+ (3.3) across remaining " + creditsPerSem + " credits/semester.";
+        } else if (requiredGpa.compareTo(new BigDecimal("3.00")) >= 0) {
+            mix1 = "Requires ~30% Grade B+ (3.3) and ~70% Grade B (3.0) across remaining " + creditsPerSem + " credits/semester.";
+        } else {
+            mix1 = "Requires consistent Grade B / C+ average across remaining " + creditsPerSem + " credits/semester.";
+        }
+
+        list.add(GradeCombinationStrategyDto.builder()
+                .strategyName("Minimum Target Cadence")
+                .targetSemesterGpa(requiredGpa.min(new BigDecimal("4.00")))
+                .gradeMixPattern(mix1)
+                .description("Calculates the exact baseline performance required per semester to hit your target CGPA.")
+                .feasibilityRating(requiredGpa.compareTo(new BigDecimal("4.00")) <= 0 ? "ACHIEVABLE" : "UNREALISTIC")
+                .build());
+
+        // Strategy 2: Distinction Push (Straight A's)
+        list.add(GradeCombinationStrategyDto.builder()
+                .strategyName("Distinction Push (Straight A Cadence)")
+                .targetSemesterGpa(new BigDecimal("4.00"))
+                .gradeMixPattern("100% Grade A (4.0) performance across all remaining " + remainingCredits + " credits.")
+                .description("Maximizes your projected CGPA up to a highest possible " + maxPossibleCgpa.toPlainString() + ".")
+                .feasibilityRating(maxPossibleCgpa.compareTo(new BigDecimal("3.70")) >= 0 ? "ACHIEVABLE" : "STRETCH")
+                .build());
+
+        // Strategy 3: Safety Buffer (+0.15 GPA)
+        BigDecimal bufferGpa = requiredGpa.add(new BigDecimal("0.15")).min(new BigDecimal("4.00")).setScale(2, RoundingMode.HALF_UP);
+        list.add(GradeCombinationStrategyDto.builder()
+                .strategyName("Safety Buffer Target (+0.15 GPA)")
+                .targetSemesterGpa(bufferGpa)
+                .gradeMixPattern("Target a " + bufferGpa.toPlainString() + " semester GPA to build a buffer against unexpected exam score variance.")
+                .description("Provides a safety margin to guarantee securing " + targetHonours + ".")
+                .feasibilityRating(bufferGpa.compareTo(new BigDecimal("4.00")) <= 0 ? "MODERATE" : "STRETCH")
+                .build());
+
+        return list;
+    }
+
 
     private DynamicScenarioMatrixDto generateScenarioMatrixInternal(
             String moduleCode, BigDecimal currentWeightedTotal, BigDecimal remainingWeight, BigDecimal targetMark) {
