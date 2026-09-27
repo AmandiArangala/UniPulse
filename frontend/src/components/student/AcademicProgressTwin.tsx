@@ -21,6 +21,9 @@ import {
   ShieldCheck,
   RotateCcw,
 } from 'lucide-react';
+import { AttentionSimulationSandbox } from './AttentionSimulationSandbox';
+import { AttentionDiagnosticCard } from '../ui/AttentionDiagnosticCard';
+import { calculateClientAttention } from '@/lib/attention-indicator-service';
 
 export interface AcademicMetrics {
   gpa: number;
@@ -69,6 +72,7 @@ export function AcademicProgressTwin({
   const [metrics, setMetrics] = useState<AcademicMetrics>(initialMetrics);
   const [isSimulating, setIsSimulating] = useState(false);
   const [showExplainability, setShowExplainability] = useState(false);
+  const [showAttentionSandbox, setShowAttentionSandbox] = useState(false);
 
   // Calculate Explainable Health Score
   const healthCalculation = useMemo(() => {
@@ -194,11 +198,10 @@ export function AcademicProgressTwin({
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSimulating(!isSimulating)}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs tracking-wide transition-all flex items-center space-x-2 shadow-md ${
-                isSimulating
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs tracking-wide transition-all flex items-center space-x-2 shadow-md ${isSimulating
                   ? 'bg-amber-400 text-slate-900 hover:bg-amber-300'
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
+                }`}
             >
               <Sliders className="w-4 h-4" />
               <span>{isSimulating ? 'Exit Interactive Mode' : 'What-If Twin Simulator'}</span>
@@ -421,9 +424,8 @@ export function AcademicProgressTwin({
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  metrics.attendanceRate >= 80 ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
+                className={`h-full rounded-full transition-all duration-500 ${metrics.attendanceRate >= 80 ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
                 style={{ width: `${metrics.attendanceRate}%` }}
               />
             </div>
@@ -556,13 +558,12 @@ export function AcademicProgressTwin({
           {recommendations.map((rec, idx) => (
             <div
               key={idx}
-              className={`p-4 rounded-xl border space-y-1.5 transition-all ${
-                rec.type === 'warning'
+              className={`p-4 rounded-xl border space-y-1.5 transition-all ${rec.type === 'warning'
                   ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200'
                   : rec.type === 'success'
-                  ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200'
-                  : 'bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900/40 text-indigo-900 dark:text-indigo-200'
-              }`}
+                    ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200'
+                    : 'bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900/40 text-indigo-900 dark:text-indigo-200'
+                }`}
             >
               <div className="flex items-center space-x-2 font-bold text-xs">
                 {rec.type === 'warning' ? (
@@ -578,6 +579,53 @@ export function AcademicProgressTwin({
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-indigo-500" />
+              Academic Attention Indicator Engine
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Explainable rule-based diagnostic engine evaluating attendance, marks, missed assessments, trend, and engagement
+            </p>
+          </div>
+
+          <button
+            onClick={() => setShowAttentionSandbox(!showAttentionSandbox)}
+            className="px-4 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2 self-start sm:self-auto"
+          >
+            <Sliders className="w-4 h-4" />
+            {showAttentionSandbox ? 'Hide Simulation Sandbox' : 'Open Risk Rule Sandbox'}
+          </button>
+        </div>
+
+        {showAttentionSandbox ? (
+          <AttentionSimulationSandbox
+            initialValues={{
+              attendanceRate: metrics.attendanceRate,
+              averageMark: metrics.assessmentAvg,
+              missedTestsCount: 0,
+              trendSlope: metrics.trendSlope,
+              engagementScore: metrics.engagementScore,
+            }}
+            userRole="STUDENT"
+          />
+        ) : (
+          <AttentionDiagnosticCard
+            data={calculateClientAttention({
+              attendanceRate: metrics.attendanceRate,
+              averageMark: metrics.assessmentAvg,
+              missedTestsCount: 0,
+              trendSlope: metrics.trendSlope,
+              engagementScore: metrics.engagementScore,
+            })}
+            userRole="STUDENT"
+            compact={false}
+          />
+        )}
       </div>
     </div>
   );
