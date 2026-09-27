@@ -28,6 +28,9 @@ import {
   InterventionStatus,
 } from '@/types/advisor';
 import { getStudent360Profile } from '@/lib/advisor-service';
+import { AttentionDiagnosticCard } from '../ui/AttentionDiagnosticCard';
+import { calculateClientAttention } from '@/lib/attention-indicator-service';
+import { StudentJourneyTimeline } from './StudentJourneyTimeline';
 
 interface Student360ProfileModalProps {
   student: AssignedStudent | null;
@@ -44,7 +47,7 @@ export function Student360ProfileModal({
 }: Student360ProfileModalProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [profileData, setProfileData] = useState<Student360Detail | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'attendance' | 'interventions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'attendance' | 'interventions' | 'attention' | 'journey'>('overview');
 
   useEffect(() => {
     if (isOpen && student) {
@@ -297,6 +300,30 @@ export function Student360ProfileModal({
             <FileText className="w-4 h-4" />
             <span>Intervention History</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('attention')}
+            className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'attention'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-indigo-500" />
+            <span>Attention Engine Diagnostics</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('journey')}
+            className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'journey'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-indigo-500" />
+            <span>Student Journey Timeline</span>
+          </button>
         </div>
 
         {/* Modal Scrollable Body */}
@@ -547,6 +574,35 @@ export function Student360ProfileModal({
                       </p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB 5: ATTENTION ENGINE DIAGNOSTICS */}
+              {activeTab === 'attention' && (
+                <div className="space-y-4">
+                  <AttentionDiagnosticCard
+                    data={calculateClientAttention({
+                      studentId: student.id,
+                      attendanceRate: student.attendanceRate,
+                      averageMark: student.gpa ? (student.gpa / 4.0) * 100 : 75,
+                      missedTestsCount: student.riskLevel === 'HIGH' || student.riskLevel === 'CRITICAL' ? 2 : 0,
+                      trendSlope: student.riskLevel === 'HIGH' ? 'DECLINING' : 'STABLE',
+                      engagementScore: 70,
+                    })}
+                    userRole="ADVISOR"
+                    compact={false}
+                  />
+                </div>
+              )}
+
+              {/* TAB 6: STUDENT JOURNEY TIMELINE */}
+              {activeTab === 'journey' && (
+                <div className="space-y-4">
+                  <StudentJourneyTimeline
+                    studentId={student.id}
+                    student={student}
+                    onLogIntervention={onLogIntervention}
+                  />
                 </div>
               )}
             </>

@@ -178,7 +178,7 @@ class SummaryAggregator:
             "mean_attendance_rate": np.round(attendance, 2),
             "stddev_attendance_rate": np.round(np.random.uniform(2, 8, n), 2),
             "mean_submission_rate": np.round(attendance + 2, 2).clip(0, 100),
-            "mean_health_score": np.round(scores * 0.6 + attendance * 0.4, 2),
+            "mean_health_score": np.round(scores * 0.40 + attendance * 0.20 + (attendance + 2).clip(0, 100) * 0.15 + 75.0 * 0.15 + 85.0 * 0.10, 2),
             "attendance_performance_corr": np.round(np.random.uniform(0.4, 0.85, n), 4),
             "passed_modules_count": np.random.randint(3, 5, n),
             "pass_rate": np.round(np.random.uniform(75, 100, n), 2),
