@@ -30,6 +30,7 @@ import {
 import { getStudent360Profile } from '@/lib/advisor-service';
 import { AttentionDiagnosticCard } from '../ui/AttentionDiagnosticCard';
 import { calculateClientAttention } from '@/lib/attention-indicator-service';
+import { StudentJourneyTimeline } from './StudentJourneyTimeline';
 
 interface Student360ProfileModalProps {
   student: AssignedStudent | null;
@@ -46,7 +47,7 @@ export function Student360ProfileModal({
 }: Student360ProfileModalProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [profileData, setProfileData] = useState<Student360Detail | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'attendance' | 'interventions' | 'attention'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'academic' | 'attendance' | 'interventions' | 'attention' | 'journey'>('overview');
 
   useEffect(() => {
     if (isOpen && student) {
@@ -310,6 +311,18 @@ export function Student360ProfileModal({
           >
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span>Attention Engine Diagnostics</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('journey')}
+            className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'journey'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-indigo-500" />
+            <span>Student Journey Timeline</span>
           </button>
         </div>
 
@@ -578,6 +591,17 @@ export function Student360ProfileModal({
                     })}
                     userRole="ADVISOR"
                     compact={false}
+                  />
+                </div>
+              )}
+
+              {/* TAB 6: STUDENT JOURNEY TIMELINE */}
+              {activeTab === 'journey' && (
+                <div className="space-y-4">
+                  <StudentJourneyTimeline
+                    studentId={student.id}
+                    student={student}
+                    onLogIntervention={onLogIntervention}
                   />
                 </div>
               )}
