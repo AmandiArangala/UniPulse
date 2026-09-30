@@ -65,6 +65,7 @@ const navItemsByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { label: 'Institutional Dashboard', href: '/', icon: LayoutDashboard },
     { label: 'OLAP Data Warehouse', href: '/admin/analytics', icon: Database, badge: 'OLAP' },
+    { label: 'Power BI & BI Reporting', href: '/admin/analytics/powerbi', icon: BarChart3, badge: 'PBIX' },
     { label: 'User Directory & Roles', href: '/admin/users', icon: Users, badge: 'System' },
     { label: 'Academic Catalog', href: '/admin/catalog', icon: BookOpenCheck, badge: 'Manager' },
     { label: 'Data Audit & Integrity', href: '/admin/data-audit', icon: ShieldAlert, badge: 'Audit' },
