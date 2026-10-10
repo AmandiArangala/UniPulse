@@ -1,0 +1,88 @@
+/* ============================================================================
+   UniPulse Enterprise Power BI Semantic Model - DAX Measures Library
+   BI Reporting & Analytical Data Modeling
+   Target Database: PostgreSQL 16 / Supabase (unipulse_analytics schema)
+   ============================================================================ */
+
+-- ============================================================================
+-- 1. [Avg GPA] - Average Cumulative Grade Point Average across Student Dimension
+-- ============================================================================
+[Avg GPA] = 
+AVERAGE('dim_student'[current_gpa])
+
+-- ============================================================================
+-- 2. [Pass Rate %] - Percentage of Module Enrollments with Passing Scores (>= 50.0)
+-- ============================================================================
+[Pass Rate %] = 
+VAR TotalEnrollments = COUNTROWS('fact_performance')
+VAR PassedEnrollments = CALCULATE(
+    COUNTROWS('fact_performance'),
+    'fact_performance'[scores] >= 50.0
+)
+RETURN 
+DIVIDE(PassedEnrollments, TotalEnrollments, 0) * 100
+
+-- ============================================================================
+-- 3. [Attendance %] - Mean Attendance Rate Across Cohorts & Modules
+-- ============================================================================
+[Attendance %] = 
+AVERAGE('fact_performance'[attendance_rate])
+
+-- ============================================================================
+-- 4. [High Risk Count] - Distinct Count of Students Flagged in Critical or Attention Required Status
+-- ============================================================================
+[High Risk Count] = 
+CALCULATE(
+    DISTINCTCOUNT('fact_performance'[student_key]),
+    'fact_performance'[attention_level] IN { "CRITICAL", "ATTENTION_REQUIRED" }
+)
+
+-- ============================================================================
+-- 5. [Intervention Success Rate %] - Ratio of Flagged Students Restored to Satisfactory Status
+-- ============================================================================
+[Intervention Success Rate %] = 
+VAR TotalInterventions = CALCULATE(
+    COUNTROWS('fact_performance'),
+    NOT ISBLANK('fact_performance'[intervention_status])
+)
+VAR SuccessfulInterventions = CALCULATE(
+    COUNTROWS('fact_performance'),
+    'fact_performance'[intervention_status] IN { "SUCCESSFUL", "RESOLVED" }
+)
+RETURN 
+DIVIDE(SuccessfulInterventions, TotalInterventions, 0) * 100
+
+-- ============================================================================
+-- 6. [Attendance-Performance Pearson r] - Correlation Between Attendance Rate & Academic Score
+-- ============================================================================
+[Attendance-Performance Pearson r] = 
+VAR AvgAtt = AVERAGE('fact_performance'[attendance_rate])
+VAR AvgScore = AVERAGE('fact_performance'[scores])
+VAR Numerator = SUMX('fact_performance', ('fact_performance'[attendance_rate] - AvgAtt) * ('fact_performance'[scores] - AvgScore))
+VAR Denominator = SQRT(
+    SUMX('fact_performance', ('fact_performance'[attendance_rate] - AvgAtt)^2) * 
+    SUMX('fact_performance', ('fact_performance'[scores] - AvgScore)^2)
+)
+RETURN 
+DIVIDE(Numerator, Denominator, 0)
+
+-- ============================================================================
+-- 7. [Academic Health Index] - Composite Health Score Averaged Across Performance Fact Table
+-- ============================================================================
+[Academic Health Index] = 
+AVERAGE('fact_performance'[health_score])
+
+-- ============================================================================
+-- 8. [Critical Student Count] - Count of High-Severity At-Risk Students
+-- ============================================================================
+[Critical Student Count] = 
+CALCULATE(
+    DISTINCTCOUNT('fact_performance'[student_key]),
+    'fact_performance'[attention_level] = "CRITICAL"
+)
+
+-- ============================================================================
+-- 9. [Submission Rate %] - Average Assignment Submission Rate
+-- ============================================================================
+[Submission Rate %] = 
+AVERAGE('fact_performance'[submission_rate])

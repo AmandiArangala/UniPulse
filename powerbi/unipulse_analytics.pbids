@@ -1,0 +1,21 @@
+{
+  "version": "0.1",
+  "connections": [
+    {
+      "details": {
+        "protocol": "postgresql",
+        "address": {
+          "server": "localhost",
+          "database": "unipulse_db"
+        },
+        "authentication": null,
+        "query": null
+      },
+      "options": {
+        "CreateNavigationProperties": false,
+        "CommandTimeout": "PT15M"
+      },
+      "mode": "DirectQuery"
+    }
+  ]
+}
